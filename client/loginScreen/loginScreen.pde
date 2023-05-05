@@ -257,10 +257,14 @@ class InputField{
  
  void processKey(char key){
    if(this.isActive ){
-     if (key=='')
+     int temp=(int)key;
+     if (temp==8)
        deleteChar();
-     else
-       this.value+=key;
+     else{
+       if(temp>=32 && temp<127)
+         this.value+=key;
+     }
+     this.text=this.value;
    }
  }
  
