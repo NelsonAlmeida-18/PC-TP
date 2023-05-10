@@ -16,7 +16,7 @@ Player player = new Player(400, 300);
 ArrayList<BonusObject> bonusObjects = new ArrayList<BonusObject>(); 
 
 //Duração de uma partida
-int duration = 90 * 1000; 
+int duration = 120 * 1000; 
 
 //Tempo em q a partida começou
 int startTime; 
