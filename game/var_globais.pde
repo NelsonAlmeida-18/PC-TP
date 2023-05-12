@@ -9,8 +9,8 @@ float angularSpeedBase = PI / 10;
 //Background Img
 PImage img;
 
-// Objeto que representa o jogador
-Player player = new Player(400, 300); 
+// Lista que armazena todos os jogadores 
+ArrayList<Player> players = new ArrayList<Player>();
 
 //Lista que armazena todos os objetos bonus do mundo
 ArrayList<BonusObject> bonusObjects = new ArrayList<BonusObject>(); 
@@ -20,3 +20,6 @@ int duration = 120 * 1000;
 
 //Tempo em q a partida começou
 int startTime; 
+
+//Distância onde ocorre a colisão entre jogadores
+int COLLISION_RADIUS = 50;

@@ -34,8 +34,8 @@ class BonusObject {
 }
 
 void createBonusObject() {
-    //novo objeto de bonus é criado com uma probabilidade de 1% e < 15 ao msm tempo
-    if (random(1) < 0.01 && bonusObjects.size() < 15) { 
+    //novo objeto de bonus é criado com uma probabilidade de 5% e < 15 ao msm tempo
+    if (random(1) < 0.05 && bonusObjects.size() < 15) { 
         
         //25 serve para que os objetos não sejam criados muito junto das bordas
         float objectX = random(25, width - 25); 
@@ -58,6 +58,8 @@ void reduceSpeeds() {
 
 void checkCollision() {
     
+    
+    
     // Iterar os objetos da lista
     for (int i = bonusObjects.size() - 1; i >= 0; i--) {
         BonusObject obj = bonusObjects.get(i);
@@ -65,19 +67,24 @@ void checkCollision() {
         // desenhar o objeto bonus na tela
         obj.display();
         
-        // calcula a distancia entre o jogador e o objeto
-        float distance = dist(player.x, player.y, obj.x, obj.y);
-        
-        //verifica a distancia entre eles se é < 35
-        if (distance < 35) {
+        //percorre todos os jogadores
+        for (Player player : players) {
+            // calcula a distancia entre o jogador e o objeto
+            float distance = dist(player.x, player.y, obj.x, obj.y);
             
-            //aplica o efeito
-            applyBonusEffect(obj);
             
-            //remove da lista
-            removeCollectedObject(i);
+            //verifica a distancia entre eles se é < 35
+            if (distance < 35) {
+                
+                //aplica o efeito
+                applyBonusEffect(obj);
+                
+                //remove da lista
+                removeCollectedObject(i);
+            }
         }
-    }
+    } 
+    
 }
 
 //Retira o objeto bonus da lista 

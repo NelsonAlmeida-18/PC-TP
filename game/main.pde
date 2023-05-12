@@ -3,8 +3,11 @@ void setup() {
     //size(1280, 720);
     fullScreen(P2D,2);
     smooth();
-    startTime = millis();
-    img = loadImage("/home/carlos/Documents/projeto-pc/background_grass.jpg");
+    startTime = millis(); 
+    //Temporário... alterar depois
+    players.add(new Player(400, 300)); // Inserir um jogador 
+    players.add(new Player(700, 200)); // Inserir um jogador 
+    //img = loadImage("/home/carlos/Documents/projeto-pc/background_grass.jpg");
 }
 
 // Função principal de renderização do jogo
@@ -12,11 +15,16 @@ void setup() {
 void draw() { 
     background(0);
     timeConfig();
+    
+    for (Player player : players) {
+        player.drawPlayer(); 
+    }
+    
     createBonusObject();
     updatePlayer();
+    playerToPlayerCollision();
     checkCollision();
-    playerCollision();
-    player.drawPlayer(); // Desenhar jogador  
+    playerCollision();  
     reduceSpeeds(); // Reduzir gradualmente as velocidades do jogador 
     displayPlayerInfo();
     tempTimeExp();
@@ -24,6 +32,12 @@ void draw() {
 }
 
 void keyPressed() {
+    
+    if (players.isEmpty()) {
+        return;
+    }
+    
+    Player player = players.get(0);
     
     if (key == 'a') {
         player.angle -= angularSpeedBase; // Roda o jogador para a esquerda 
@@ -38,7 +52,14 @@ void keyPressed() {
 }
 
 void keyReleased() {
-    if(key == 'w') {
+    
+    if (players.isEmpty()) {
+        return;
+    }
+    
+    Player player = players.get(0);
+    
+    if (key == 'w') {
         player.moving = false;
     }
 }

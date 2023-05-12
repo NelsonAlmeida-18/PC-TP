@@ -25,12 +25,12 @@ void timeConfig() {
 // Apenas para teste
 void tempTimeExp() {
     int time = getTimeRemaining();
-    if(time == 0) {
+    if (time == 0) {
         exit();
-}
+    }
 }
 
-// Exibir informações do jogador (temporario)
+// Exibir informações do jogador(temporario)
 void displayPlayerInfo() {
     
     popMatrix(); 
@@ -41,5 +41,8 @@ void displayPlayerInfo() {
     text("Velocidade Linear: " + nf(linearSpeedBase, 0, 2), 20, 30);
     text("Velocidade Angular: " + nf(angularSpeedBase, 0, 2), 20, 60);
     text("Pontuação: " + 0.0, 20, 150);
+    
     popMatrix();
+    
 }
+
