@@ -3,16 +3,21 @@ Button loginBtn;
 Button registerBtn;
 Button submitBtn;
 Button backBtn;
+Button playBtn;
 Window window=new Window();
 InputField usernameField;
 InputField passwordField;
 String font;
 int padding=20;
+boolean findingMatch=false;
+
 
 enum Screen{
   main,
   login,
-  register
+  register,
+  play,
+  findingMatch
 }
 
 Screen screen;
@@ -34,30 +39,55 @@ void setup(){
  passwordField = new InputField("./src/inputBox.png", "Password...");
  passwordField.updatePosition( usernameField.x, usernameField.y+usernameField.height+padding);
  
+ playBtn = new Button("./src/play.png", "./src/playHover.png");
+ playBtn.updatePosition(window.width/2-playBtn.width/2, loginBtn.y);
+ 
  submitBtn = new Button("./src/submitBtn.png", "./src/submitBtnHover.png");
  submitBtn.updatePosition(passwordField.x+submitBtn.width/4,passwordField.y+passwordField.height+padding);
  screen=Screen.main;
 }
 
 void draw(){
-  if (screen==Screen.main){
-     image(bg,0,0);
-     image(loginBtn.image,loginBtn.x, loginBtn.y);
-     image(registerBtn.image,registerBtn.x, registerBtn.y);
-     image(backBtn.image, backBtn.x, backBtn.y);
-  }
-  else{
-    image(bg, 0, 0);
-    image(submitBtn.image, submitBtn.x, submitBtn.y);
-    image(backBtn.image, backBtn.x, backBtn.y);
-    image(usernameField.image, usernameField.x, usernameField.y);
-    image(passwordField.image, passwordField.x, passwordField.y);
-    textSize(20);
-    fill(255);
-    text(usernameField.text, usernameField.x + 10, usernameField.y + 25);
-    text(passwordField.text, passwordField.x + padding, passwordField.y + passwordField.height / 2 + 73 / 2); 
+  switch(screen){
+     case main:
+       image(bg,0,0);
+       image(loginBtn.image,loginBtn.x, loginBtn.y);
+       image(registerBtn.image,registerBtn.x, registerBtn.y);
+       image(backBtn.image, backBtn.x, backBtn.y);
+       break;
+      
+     case play:
+        image(bg,0,0);
+        image(backBtn.image, backBtn.x, backBtn.y);
+        image(playBtn.image, playBtn.x, playBtn.y);
+        break;
+      
+      case register:
+        image(bg, 0, 0);
+        image(submitBtn.image, submitBtn.x, submitBtn.y);
+        image(backBtn.image, backBtn.x, backBtn.y);
+        image(usernameField.image, usernameField.x, usernameField.y);
+        image(passwordField.image, passwordField.x, passwordField.y);
+        textSize(20);
+        fill(255);
+        text(usernameField.text, usernameField.x + 10, usernameField.y + 25);
+        text(passwordField.text, passwordField.x + padding, passwordField.y + passwordField.height / 2 + 73 / 2);  
+        break;
+      
+      case login:
+        image(bg, 0, 0);
+        image(submitBtn.image, submitBtn.x, submitBtn.y);
+        image(backBtn.image, backBtn.x, backBtn.y);
+        image(usernameField.image, usernameField.x, usernameField.y);
+        image(passwordField.image, passwordField.x, passwordField.y);
+        textSize(20);
+        fill(255);
+        text(usernameField.text, usernameField.x + 10, usernameField.y + 25);
+        text(passwordField.text, passwordField.x + padding, passwordField.y + passwordField.height / 2 + 73 / 2);  
+        break;
   }
 }
+
 
 void mouseClicked(){
 
@@ -95,6 +125,36 @@ void mouseClicked(){
     }
   }
   
+  //verificar se o botão de submit foi clicado, se sim, fazer request e analisar a resposta
+  //caso esteja no login e este seja válido transita para o ecrã de play
+  //caso esteja no registo e este seja válido transita para o ecrã main
+  if(mouseX>submitBtn.x && mouseX<submitBtn.x+submitBtn.width && mouseY>submitBtn.y && mouseY<submitBtn.y+submitBtn.height){
+     //verificar se está no ecrã de login
+     if(screen==Screen.login){
+        //fazer request e analisar a resposta  
+        usernameField.reset();
+        passwordField.reset();
+        submitBtn.reset();
+        screen=Screen.play;
+      
+     }
+     if(screen==Screen.register){
+        //fazer request e analisar a resposta
+        screen=Screen.main;
+        usernameField.reset();
+        passwordField.reset();
+        submitBtn.reset();
+     }
+  }
+  
+  //verificar se o botão de play foi clicado, se sim, ficar à espera de encontrar partida e fazer animação DIY
+  if(screen==Screen.play){
+      if(mouseX>playBtn.x && mouseX<playBtn.x+playBtn.width && mouseY>playBtn.y && mouseY<playBtn.y+playBtn.height){
+        findingMatch=true; 
+        screen=Screen.findingMatch;
+     } 
+  }
+
   if(mouseX>backBtn.x && mouseX<backBtn.x+backBtn.width && mouseY>backBtn.y && mouseY<backBtn.y+backBtn.height){
     if (screen==Screen.main){
        exit();
@@ -104,7 +164,7 @@ void mouseClicked(){
       usernameField.reset();
       passwordField.reset();
       backBtn.reset();
-     
+      playBtn.reset();
     }
   }
 }
@@ -128,7 +188,17 @@ void mouseMoved(){
        backBtn.image=backBtn.regular;
     }
   }
+  //hover no botão Play
+  if(screen==Screen.play){
+     if(mouseX>playBtn.x && mouseX<playBtn.x+playBtn.width && mouseY>playBtn.y && mouseY<playBtn.y+playBtn.height){
+        playBtn.image=playBtn.hover; 
+     }
+     else{
+       playBtn.image=playBtn.regular;
+     }
+  }
   
+  //hover no backbtn
   if(mouseX>backBtn.x && mouseX<backBtn.x+backBtn.width && mouseY>backBtn.y && mouseY<backBtn.y+backBtn.height){
     backBtn.image=backBtn.hover;
   }
@@ -142,6 +212,7 @@ void mouseMoved(){
        submitBtn.image=submitBtn.regular; 
     }
   }
+  
 }
 
 void keyPressed(){
