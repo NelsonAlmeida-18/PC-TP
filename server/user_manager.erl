@@ -16,13 +16,13 @@ create_account(Registers, From, User, Pwd) ->
     Registers_updated.
 
 
-delete_account(Registers, From, Id, Pwd) -> 
-    case maps:is_key(Registers, Id) of
+delete_account(Registers, From, User, Pwd) -> 
+    case maps:is_key(Registers, User) of
         true -> 
-            {ok, {User, Password, _, _}} = maps:find(Id, Registers),
+            {ok, {Password, _, _}} = maps:find(User, Registers),
             if
                 Password == Pwd ->
-                    Registers_updated = maps:remove(Id, Registers),
+                    Registers_updated = maps:remove(User, Registers),
                     From ! success;
                 true ->
                     io:fwrite("User ~p: Invalid Password!\n", [User]),
@@ -30,19 +30,19 @@ delete_account(Registers, From, Id, Pwd) ->
                     From ! invalid_pwd
             end;
         false ->
-            io:fwrite("ID ~p does not exist!\n", [Id]),
+            io:fwrite("User ~p does not exist!\n", [User]),
             Registers_updated = Registers,
             From ! invalid_user
     end,
     Registers_updated.
 
 
-login(Registers, From, Id, Pwd) ->
-    case maps:find(Registers, Id) of
-        {ok, {User, Password, Wg, _}} -> 
+login(Registers, From, User, Pwd) ->
+    case maps:find(Registers, User) of
+        {ok, {Password, Wg, _}} -> 
             if
                 Password == Pwd ->
-                    Registers_updated = maps:update(Id, {User, Pwd, Wg, true}, Registers),
+                    Registers_updated = maps:update(User, {Pwd, Wg, true}, Registers),
                     From ! success;
                 true ->
                     From ! invalid_pwd,
@@ -52,17 +52,17 @@ login(Registers, From, Id, Pwd) ->
         _ -> 
             Registers_updated = Registers,
             From ! invalid_user,
-            io:fwrite("ID ~p does not exist!\n", [Id])
+            io:fwrite("User ~p does not exist!\n", [User])
     end,
     Registers_updated.
 
 
-logout(Registers, From, Id, Pwd) ->
-    case maps:find(Registers, Id) of
-        {ok, {User, Password, Wg, _}} ->
+logout(Registers, From, User, Pwd) ->
+    case maps:find(Registers, User) of
+        {ok, {Password, Wg, _}} ->
             if
                 Password == Pwd ->
-                    Registers_updated = maps:update(Id, {User, Pwd, Wg, false}, Registers),
+                    Registers_updated = maps:update(User, {Pwd, Wg, false}, Registers),
                     From ! success;
                 true ->
                     From ! invalid_pwd,
@@ -71,14 +71,14 @@ logout(Registers, From, Id, Pwd) ->
             end;
         _ ->
             Registers_updated = Registers,
-            io:fwrite("ID ~p does not exist!\n", [Id]),
+            io:fwrite("User ~p does not exist!\n", [User]),
             From ! invalid_user
     end,
     Registers_updated.
 
 
-is_logged_in(Registers, Id, Pwd) ->
-    case maps:find(Registers, Id) of
+is_logged_in(Registers, User, Pwd) ->
+    case maps:find(Registers, User) of
         {ok, {_, Password, _, Login}} ->
             if
                 (Password == Pwd) and (Login == true) ->
@@ -90,16 +90,16 @@ is_logged_in(Registers, Id, Pwd) ->
     end.
 
         
-update_user_score(Registers, Id) ->
-    case maps:get(Id, Registers) of
-        {User, Pwd, Wg, Login} -> NewRegisters = maps:update(Id, {User, Pwd, Wg + 1, Login}, Registers);
+update_user_score(Registers, User) ->
+    case maps:get(User, Registers) of
+        {Pwd, Wg, Login} -> NewRegisters = maps:update(User, {Pwd, Wg + 1, Login}, Registers);
         _ -> NewRegisters = false
     end,
     NewRegisters.
 
 
-get_user_level(Registers, Id) ->
-    case maps:get(Id, Registers) of
+get_user_level(Registers, User) ->
+    case maps:get(User, Registers) of
         {_, _, Wg, _} -> Level = (Wg / 2) + 1;
         _ -> Level = false
     end,
