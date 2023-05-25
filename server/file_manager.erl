@@ -20,19 +20,23 @@ readContent(Filename) ->
 %UPW -> User, Password, Wg
 parser([], Data) -> Data;
 parser([H | T], Data) ->
-    [ID | UPW] = string:split(H, ","),
-    IDnum = parseSingleField(ID),
-    [U | PW] = string:split(UPW, ","),
+    [U | PW] = string:split(H, ","),
     User = parseSingleField(U),
     [P | W] = string:split(PW, ","),
     Pwd = parseSingleField(P),
     Wg = parseSingleField(W),
-    NewUser = maps:put(IDnum, {User, Pwd, Wg, false}, Data),
+
+    if 
+        User == [<<>>] ->
+            Data1 = Data;
+        true ->
+            Data1 = maps:put(User, {Pwd, Wg, false}, Data)
+    end,
     if
         T == [] ->
-            NewUser;
+            Data1;
         true ->
-            parser(string:split(T, "\n"), NewUser)
+            parser(string:split(T, "\n"), Data1)
     end.
 
 
@@ -42,9 +46,8 @@ parseSingleField(Field) ->
     Value.
 
 
-account_to_string({IDnum, {User, Pwd, Wg, _}}) ->
-    string:join(["$ID:" ++ IDnum, 
-                 "$USERNAME:" ++ User,
+account_to_string({User, {Pwd, Wg, _}}) ->
+    string:join(["$USERNAME:" ++ User,
                  "$PASSWORD:" ++ Pwd,
                  "$WG:" ++ Wg], ",").
 
@@ -60,6 +63,5 @@ write_data(Filename, Accounts) ->
 
 test() ->
     Map = readContent("file_syntax.txt"),
-    User = maps:get([<<"id">>], Map),
-    Map1 = maps:put([<<"2">>], {[<<"goncalo">>], [<<"1234">>], [<<"5">>], false}, #{}),
+    Map1 = maps:put([<<"nelson">>], {[<<"1234">>], [<<"5">>], false}, Map),
     write_data("file_syntax.txt", Map1).
