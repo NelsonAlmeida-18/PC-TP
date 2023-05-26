@@ -1,7 +1,7 @@
 -module(server).
 -import(users_manager, [create_account/4, delete_account/4, login/4, logout/4, is_logged_in/3]).
 -import(file_manager, [readContent/1, write_data/2]).
--export([start/1, server/1, stop/1, lobby/2, acceptor/1, userAuth/1, loop/2]).
+-export([start/1, server/1, stop/1, lobby/1, acceptor/1, userAuth/1, loop/2]).
 
 
 start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
@@ -9,7 +9,7 @@ start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
 stop(Server) -> Server ! stop.
 
 
-server(Port) -> 
+server(Port) ->
     Result = gen_tcp:listen(Port, [binary, {packet, line}, {reuseaddr, true}]),
     case Result of
         {ok, LSock} ->
@@ -122,9 +122,9 @@ loop(Registers, Lobby) ->
             loop(Registers, Lobby);
         {join, User, Pwd, From} ->
             Status = user_manager:is_logged_in(Registers, User, Pwd),
-            
+
             if
-                Status -> 
+                Status ->
                     UserLevel = user_manager:get_user_level(Registers, User),
                     Lobby ! {join, User, From, UserLevel};
                 true ->
@@ -145,7 +145,7 @@ lobby(Pids) ->
                     lobby(NewPids);
                 true ->
                     case lists:member({From, User, UserLevel}, Pids) of
-                        false -> 
+                        false ->
                             case matchMaking([Pids | {From, User, UserLevel}]) ->
                                 {User1, User2} ->
                                     {From1, Username1, _} = User1,
@@ -157,7 +157,7 @@ lobby(Pids) ->
                                 false ->
                                     lobby([Pids | {From, User, UserLevel}])
                             end;
-                        true -> 
+                        true ->
                             From ! already_in
                     end,
             end,
@@ -169,7 +169,7 @@ lobby(Pids) ->
     end.
 
 
-matchMaking([]) -> false;  
+matchMaking([]) -> false;
 matchMaking([H | T]) ->
     case sameLevel(H, T) of
         {true, User1, User2} -> {User1, User2};
@@ -178,11 +178,11 @@ matchMaking([H | T]) ->
 
 
 sameLevel(Elem, []) -> false;
-sameLevel(Elem, [H | T]) -> 
+sameLevel(Elem, [H | T]) ->
     {From, User, Level} = Elem,
     {From2, User2, Level2} = H,
     if
-        Level == Level2 -> 
+        Level == Level2 ->
             {true, Elem, H};
         true ->
             sameLevel(Elem, T)
