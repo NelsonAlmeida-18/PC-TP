@@ -20,7 +20,7 @@ enum Type {
 }
 
 State state;
-PImage img_menu, img_game;
+PImage img_menu, img_game, won_BG, lost_BG;
 
 // MENU
 Button loginBtn;
@@ -29,8 +29,11 @@ Button submitBtn;
 Button backBtn;
 InputField usernameField;
 InputField passwordField;
+Button playAgainBtn;
+Button exitBtn;
 String font;
 int padding=20;
+boolean won = false;
 
 // GAME
 Player player1 = new Player();
@@ -42,7 +45,7 @@ String time;
 
 void setup() {
     size(1280,720);
-    setState(State.MENU);
+    setState(State.MENU); // Estado inicial
 
     // MENU
     img_menu = loadImage("./Images/loginScreen.png");
@@ -50,7 +53,7 @@ void setup() {
     loginBtn = new Button("./Images/loginBtn.png", "./Images/loginBtnHover.png");
     loginBtn.updatePosition(width/2-loginBtn.width/2,height/2-loginBtn.height/2+padding);
     registerBtn = new Button("./Images/registerBtn.png", "./Images/registerBtnHover.png");
-    registerBtn.updatePosition( loginBtn.x,loginBtn.y+loginBtn.height+padding);
+    registerBtn.updatePosition(loginBtn.x,loginBtn.y+loginBtn.height+padding);
 
     backBtn = new Button("./Images/closeScreen.png", "./Images/closeScreenHover.png");
     backBtn.updatePosition(width-(backBtn.width+padding), padding);
@@ -63,8 +66,18 @@ void setup() {
     submitBtn = new Button("./Images/submitBtn.png", "./Images/submitBtnHover.png");
     submitBtn.updatePosition(passwordField.x+submitBtn.width/4,passwordField.y+passwordField.height+padding);
 
+    playAgainBtn = new Button("./Images/playAgainBtn.png", "./Images/playAgainHover.png");
+    playAgainBtn.updatePosition(width/2-playAgainBtn.width/2,height/2-playAgainBtn.height/2+padding);
+
+    exitBtn = new Button("./Images/exitBtn.png", "./Images/exitBtnHover.png");
+    exitBtn.updatePosition(playAgainBtn.x, playAgainBtn.y + playAgainBtn.height+padding);
+
     // GAME
     img_game = loadImage("./Images/ringBG.png");
+    
+    // END
+    won_BG = loadImage("./Images/YouWon_BG.jpg");
+    lost_BG = loadImage("./Images/YouLost_BG.jpg");
 }
 
 void draw() {
@@ -72,8 +85,8 @@ void draw() {
         case MENU:
             surface.setSize(1280,720);
             image(img_menu,0,0);
-            image(loginBtn.image,loginBtn.x, loginBtn.y);
-            image(registerBtn.image,registerBtn.x, registerBtn.y);
+            image(loginBtn.image, loginBtn.x, loginBtn.y);
+            image(registerBtn.image, registerBtn.x, registerBtn.y);
             image(backBtn.image, backBtn.x, backBtn.y);
 
             break;
@@ -132,6 +145,15 @@ void draw() {
 
         case END:
             surface.setSize(1280, 720);
+            
+            if (won) {
+                image(won_BG, 0, 0);
+            } else {
+                image(lost_BG, 0, 0);
+            }
+
+            image(playAgainBtn.image, playAgainBtn.x, playAgainBtn.y);
+            image(exitBtn.image, exitBtn.x, exitBtn.y);
 
             break;
     }
@@ -180,6 +202,11 @@ void parser(String string) {
 
             i += 3;
         }
+        
+    } else if (tokens[0].equals("You won!\n")) {
+        this.won = true;
+    } else if (tokens[0].equals("You lost!\n")) {
+        this.won = false;
     }
 }
 
@@ -248,6 +275,15 @@ void mouseClicked() {
             backBtn.reset();
         }
     }
+
+    if(mouseX>exitBtn.x && mouseX<exitBtn.x + exitBtn.width && mouseY>exitBtn.y && mouseY<exitBtn.y + exitBtn.height) {
+        exit();
+    }
+
+    if(mouseX>playAgainBtn.x && mouseX<playAgainBtn.x + playAgainBtn.width && mouseY>playAgainBtn.y && mouseY<playAgainBtn.y + playAgainBtn.height) {
+        state = State.MENU;
+        playAgainBtn.reset();
+    }
 }
 
 void mouseMoved() {
@@ -278,6 +314,19 @@ void mouseMoved() {
             }
         } else {
             submitBtn.image=submitBtn.regular;
+        }
+    }
+
+    if (state == State.END) {
+        if(mouseX > playAgainBtn.x && mouseX<(playAgainBtn.x + playAgainBtn.width)) {
+            if(mouseY>playAgainBtn.y && mouseY<(playAgainBtn.y + playAgainBtn.height)) {
+                playAgainBtn.image = playAgainBtn.hover;
+                exitBtn.image = exitBtn.regular;
+            }
+            if(mouseY>exitBtn.y && mouseY<(exitBtn.y + exitBtn.height)) {
+                exitBtn.image = exitBtn.hover;
+                playAgainBtn.image = playAgainBtn.regular;
+            }
         }
     }
 }
