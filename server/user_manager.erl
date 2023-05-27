@@ -31,32 +31,30 @@ accounts_management(Accounts) ->
         {statistics, From} ->
             get_statistics(Accounts, From),
             accounts_management(Accounts);
-        {write_data} ->
-            file_manager ! {write_data, Accounts, "file_syntax.txt"};
         {stop, From} ->
-            From ! {stopped, accounts_manager}
+            From ! {stopped, accounts_manager};
+        write_data ->
+            file_manager ! {write_data, Accounts, "file_syntax.txt"},
+            accounts_management(Accounts)
     end.
-        
-
 
 
 create_account(Registers, From, User, Pwd) -> 
-    case maps:is_key(Registers, User) of
-        true ->
+
+    case maps:find(User, Registers)  of
+        {ok,_} ->
             From ! {user_exists, accounts_manager},
             Registers_updated = Registers;
-        false ->
-            NewId = maps:size(Registers) + 1,
-            Registers_updated = maps:put(NewId, {User, Pwd, 0, 1, false}, Registers),
+        _ ->
+            Registers_updated = maps:put(User, {Pwd, 0, false}, Registers),
             From ! {account_created, accounts_manager}
     end,
     Registers_updated.
 
 
 delete_account(Registers, From, User, Pwd) -> 
-    case maps:is_key(Registers, User) of
-        true -> 
-            {ok, {Password, _, _}} = maps:find(User, Registers),
+    case maps:find(User, Registers) of
+        {ok, {Password, _, _}} -> 
             if
                 Password == Pwd ->
                     Registers_updated = maps:remove(User, Registers),
@@ -66,7 +64,7 @@ delete_account(Registers, From, User, Pwd) ->
                     Registers_updated = Registers,
                     From ! {invalid_pwd, accounts_manager}
             end;
-        false ->
+        _ ->
             io:fwrite("User ~p does not exist!\n", [User]),
             Registers_updated = Registers,
             From ! {invalid_user, accounts_manager}
@@ -75,7 +73,7 @@ delete_account(Registers, From, User, Pwd) ->
 
 
 login(Registers, From, User, Pwd) ->
-    case maps:find(Registers, User) of
+    case maps:find(User, Registers) of
         {ok, {Password, Wg, _}} -> 
             if
                 Password == Pwd ->
@@ -95,7 +93,7 @@ login(Registers, From, User, Pwd) ->
 
 
 logout(Registers, From, User) ->
-    case maps:find(Registers, User) of
+    case maps:find(User,Registers) of
         {ok, {Pwd, Wg, _}} ->
             Registers_updated = maps:update(User, {Pwd, Wg, false}, Registers),
             From ! {logout_successfully, accounts_manager};
@@ -109,13 +107,11 @@ logout(Registers, From, User) ->
 
 user_logged_in(Accounts, User, From) ->
     Account = maps:get(User, Accounts),
-    {_, _, Status}  = Account,
-    
-    case Status of
-        true ->
-            From ! true;
-        false ->
-            From ! false
+    case Account of
+        {_, _, true}  ->
+            From ! {true, accounts_manager};
+        _ ->
+            From ! {false, accounts_manager}
     end.
 
 
@@ -141,7 +137,7 @@ update_user_score(Registers, User) ->
 
 get_user_level(Registers, User) ->
     case maps:get(User, Registers) of
-        {_, _, Wg, _} -> Level = (Wg / 2) + 1;
+        { _, Wg, _} -> Level = (Wg / 2) + 1;
         _ -> Level = false
     end,
     Level.
