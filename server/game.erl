@@ -5,10 +5,10 @@
 game(Pids) ->
     ?MODULE ! start,
     [From ! start || {From, _, _} <- Pids],
-    setup(Pids, #{}, #{}).
+    setup(Pids, #{}).
 
 
-setup([], Players, _) -> 
+setup([], Players) -> 
     Pid = self(),
     Sender = spawn(fun() -> 
                         Data = #{},
@@ -16,18 +16,17 @@ setup([], Players, _) ->
                         Pids = maps:keys(Players),
                         Items = spawnItems(4, [], 10),
                         Data2 = maps:put(items, Items, Data1),
-                        [Player ! {initialMatch, Data2, Pid, match_manager} || Player <- Pids],
-                        dataSender(Data, Pid, false) end),
+                        [Player ! {initMatch, Data2, Pid, match_manager} || Player <- Pids],
+                        dataSender(Data, Pid) end),
     keysManager(Players, Sender);
-setup([{From, User} | T], Players, PressedKeys) ->
+setup([{From, User} | T], Players) ->
     Keys = #{},
     Keys = maps:put(w, false, Keys),
     Keys = maps:put(a, false, Keys),
     Keys = maps:put(d, false, Keys),
-    Player = spawnPlayer(User, Players, 35, PressedKeys),
+    Player = spawnPlayer(User, Players, 35, Keys),
     Players = maps:put(From, Player, Players),
-    PressedKeys = maps:put(From, Keys, PressedKeys),
-    setup(T, Players, PressedKeys).
+    setup(T, Players).
 
 
 newPosition(Players, Size) ->
@@ -128,52 +127,32 @@ validSpawn(X, Y, Size, [{_, Player}|Players]) ->
     end.
 
 
-dataSender(Data, Pid, Flag) ->
+dataSender(Data, Pid) ->
     receive
         {score, From, Score} ->
             Players = maps:get(players, Data),
             Player = maps:get(From, Players),
             PlayerUpdated = maps:update(score, Score, Player),
             DataUpdated = maps:update(From, PlayerUpdated, Data),
-            dataSender(DataUpdated, Pid, true);
+            dataSender(DataUpdated, Pid);
+        {quit, From, User} ->
+            Players = maps:get(players, Data),
+            Pids = maps:keys(Players),
+            surrender(From, Pids, Players),
+            match_manager ! {leave, From, User},
+            success;
         {From, PressedKeys} ->
             Players = maps:get(players, Data),
             Player = maps:get(From, Players),
             PlayerUpdated = maps:update(pressedKeys, PressedKeys, Player),
             PlayersUpdated = maps:update(From, PlayerUpdated, Players),
             DataUpdated = maps:update(players, PlayersUpdated, Data),
-            dataSender(DataUpdated, Pid, Flag);
-        {quit, From} ->
-            Players = maps:get(players, Data),
-            Pids = maps:keys(Players),
-            Player = maps:get(From, Players),
-            User = maps:get(user, Player),
-            [Player ! {finish, Pid, User} || Player <- Pids],
-            success
+            dataSender(DataUpdated, Pid)
         after
-            30 -> %VERIFICAR VALOR----------------------------------
+            20 -> %VERIFICAR VALOR----------------------------------
                 DataUpdated = simulate(Data, Pid),
-                dataSender(DataUpdated, Pid, false)
+                dataSender(DataUpdated, Pid)
     end.
-
-
-sendPlayersData(Sock, Data) ->
-    Players = maps:get(players, Data),
-    ListOfPlayers = [Player || {_, Player} <- maps:to_list(Players)],
-    sendPlayerData(Sock, ListOfPlayers).
-
-
-sendPlayerData(_, []) ->
-    ok;
-sendPlayerData(Sock, [H | T]) ->
-    User = maps:get(user, H),
-    X = maps:get(x, H),
-    Y = maps:get(y, H),
-    Angle = maps:get(angle, H),
-    Speed = maps:get(speed, H),
-    Score = maps:get(score, H),
-    gen_tcp:send(Sock, io_lib:fwrite("User: ~s, x: ~w, y: ~w, Speed: ~w, Angle: ~w, Score: ~w~n", [User, X, Y, Speed, Angle, Score])),
-    sendPlayerData(Sock, T).
 
 
 simulate(MatchData, Pid) ->
@@ -216,27 +195,69 @@ simulate(MatchData, Pid) ->
 
 keysManager(Players, Sender) ->
     receive
-        {key, Key, From} ->
+        {updatedKey, Key, Status, From} ->
             Player = maps:get(From, Players),
-            Keys = maps:get(pressedKeys, Player),
-            case Key of
-                "up" -> %VERIFICAR NOME DA TECLA
-                    KeysUpdated = maps:update(w, true, Keys),
-                    PlayerUpdated = maps:update(pressedKeys, KeysUpdated, Player),
-                    PlayersUpdated = maps:update(From, PlayerUpdated, Players),
-                    keysManager(PlayersUpdated, Sender);
-                "right" ->
-                    KeysUpdated = maps:update(d, true, Keys),
-                    PlayerUpdated = maps:update(pressedKeys, KeysUpdated, Player),
-                    PlayersUpdated = maps:update(From, PlayerUpdated, Players),
-                    keysManager(PlayersUpdated, Sender);
-                "left" ->
-                    KeysUpdated = maps:update(a, true, Keys),
-                    PlayerUpdated = maps:update(pressedKeys, KeysUpdated, Player),
-                    PlayersUpdated = maps:update(From, PlayerUpdated, Players),
-                    keysManager(PlayersUpdated, Sender)
-            end
-    end. %COMPLETAR FUNC
+            PressedKeys = maps:get(pressedKeys, Player),
+            case Status of
+                true ->
+                    case Key of
+                        "w" ->
+                            UpdatedPressedKeys = maps:put(w, true, PressedKeys),
+                            Sender ! {From, UpdatedPressedKeys},
+                            PlayerUpdated = maps:put(pressedKeys, UpdatedPressedKeys, Player),
+                            PlayersUpdated = maps:put(From, PlayerUpdated, Players),
+                            keysManager(PlayersUpdated, Sender);
+                        "d" ->
+                            UpdatedPressedKeys = maps:put(d, true, PressedKeys),
+                            Sender ! {From, UpdatedPressedKeys},
+                            PlayerUpdated = maps:put(pressedKeys, UpdatedPressedKeys, Player),
+                            PlayersUpdated = maps:put(From, PlayerUpdated, Players),
+                            keysManager(PlayersUpdated, Sender);
+                        "a" ->
+                            UpdatedPressedKeys = maps:put(a, true, PressedKeys),
+                            Sender ! {From, UpdatedPressedKeys},
+                            PlayerUpdated = maps:put(pressedKeys, UpdatedPressedKeys, Player),
+                            PlayersUpdated = maps:put(From, PlayerUpdated, Players),
+                            keysManager(PlayersUpdated, Sender);
+                        "s" ->
+                            UpdatedPressedKeys = maps:put(s, true, PressedKeys),
+                            Sender ! {From, UpdatedPressedKeys},
+                            PlayerUpdated = maps:put(pressedKeys, UpdatedPressedKeys, Player),
+                            PlayersUpdated = maps:put(From, PlayerUpdated, Players),
+                            keysManager(PlayersUpdated, Sender)
+                    end;
+                false ->
+                    case Key of
+                        "w" ->
+                            UpdatedPressedKeys = maps:put(w, false, PressedKeys),
+                            Sender ! {From, UpdatedPressedKeys},
+                            PlayerUpdated = maps:put(pressedKeys, UpdatedPressedKeys, Player),
+                            PlayersUpdated = maps:put(From, PlayerUpdated, Players),
+                            keysManager(PlayersUpdated, Sender);
+                        "d" ->
+                            UpdatedPressedKeys = maps:put(d, false, PressedKeys),
+                            Sender ! {From, UpdatedPressedKeys},
+                            PlayerUpdated = maps:put(pressedKeys, UpdatedPressedKeys, Player),
+                            PlayersUpdated = maps:put(From, PlayerUpdated, Players),
+                            keysManager(PlayersUpdated, Sender);
+                        "a" ->
+                            UpdatedPressedKeys = maps:put(a, false, PressedKeys),
+                            Sender ! {From, UpdatedPressedKeys},
+                            PlayerUpdated = maps:put(pressedKeys, UpdatedPressedKeys, Player),
+                            PlayersUpdated = maps:put(From, PlayerUpdated, Players),
+                            keysManager(PlayersUpdated, Sender);
+                        "s" ->
+                            UpdatedPressedKeys = maps:put(s, false, PressedKeys),
+                            Sender ! {From, UpdatedPressedKeys},
+                            PlayerUpdated = maps:put(pressedKeys, UpdatedPressedKeys, Player),
+                            PlayersUpdated = maps:put(From, PlayerUpdated, Players),
+                            keysManager(PlayersUpdated, Sender)
+                    end
+            end;
+        %VERIFICAR SE FALTAM REQUESTS
+        {leave, User, Pid} ->
+            Sender ! {quit, User, Pid}
+    end.
 
 
 keysActions(Speed, Angle, _, Acceleration, _, []) ->
@@ -273,7 +294,7 @@ keyPressedAction([{From, Data} | T], Result, PlayersUpdated) ->
 
     {UpdatedSpeed, UpdatedAngle, UpdatedAcc} = keysActions(Speed, Angle, AngleVariation, Acceleration, SpeedVariation, Keys),
 
-    {UpdatedX, UpdatedY} = updatedPosition(X, Y, UpdatedSpeed, UpdatedAngle),
+    {UpdatedX, UpdatedY} = updatePosition(X, Y, UpdatedSpeed, UpdatedAngle),
 
     case {UpdatedX, UpdatedY, UpdatedSpeed, UpdatedAngle, UpdatedAcc} of
         {X, Y, Speed, Angle, Acceleration} ->
@@ -298,7 +319,7 @@ keyPressedAction([{From, Data} | T], Result, PlayersUpdated) ->
     keyPressedAction(T, ResultUpdated, NewPlayersUpdated).
 
 respawnPlayers(_, [], UpdatedPlayers) ->
-    UpdatedPlayers.
+    UpdatedPlayers;
 respawnPlayers(Players, [Pid | DeadPids], UpdatedPlayers) ->
     Player = maps:get(Pid, Players),
 
@@ -475,3 +496,16 @@ colisionPlayerItemAction(Player, Item) ->
         true ->
             false
     end.
+
+
+surrender(From, [Pid | Pids], Players) ->
+    Player = maps:get(Pid, Players),
+    User = maps:get(user, Player),
+
+    if
+        Pid == From ->
+            Pid ! {gameover, Pid, User, 0};
+        true ->
+            Pid ! {gameover, Pid, User, 1}
+    end,
+    surrender(From, Pids, Players).
