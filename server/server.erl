@@ -9,7 +9,7 @@ start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
 stop(Server) -> Server ! stop.
 
 
-server(Port) -> 
+server(Port) ->
     Result = gen_tcp:listen(Port, [binary, {packet, line}, {reuseaddr, true}]),
     case Result of
         {ok, LSock} ->
@@ -141,7 +141,7 @@ lobby(Pids) ->
                                 false ->
                                     lobby([Pids | {From, User, UserLevel}])
                             end;
-                        true -> 
+                        true ->
                             From ! already_in
                     end
             end,
@@ -154,7 +154,7 @@ lobby(Pids) ->
     end.
 
 
-matchMaking([]) -> false;  
+matchMaking([]) -> false;
 matchMaking([H | T]) ->
     case sameLevel(H, T) of
         {true, User1, User2} -> {User1, User2};
@@ -167,7 +167,7 @@ sameLevel(Elem, [H | T]) ->
     {_, _, Level} = Elem,
     {_, _, Level2} = H,
     if
-        Level == Level2 -> 
+        Level == Level2 ->
             {true, Elem, H};
         true ->
             sameLevel(Elem, T)
