@@ -1,7 +1,7 @@
 -module(server).
--import(users_manager, [create_account/4, delete_account/4, login/4, logout/4, is_logged_in/3]).
--import(file_manager, [readContent/1, write_data/2]).
--export([start/1, server/1, stop/1, lobby/1, acceptor/1, userAuth/1, loop/2]).
+-import(users_manager, [create_account/4, delete_account/4, login/4, logout/4, is_logged_in/3, accounts_management/1]).
+-import(file_manager, [readContent/1, write_data/2, file_management/0]).
+-export([start/1, server/1, stop/1, lobby/1, acceptor/1, userAuth/1]).
 
 
 start(Port) -> register(?MODULE, spawn(fun() -> server(Port) end)).
@@ -13,10 +13,12 @@ server(Port) ->
     Result = gen_tcp:listen(Port, [binary, {packet, line}, {reuseaddr, true}]),
     case Result of
         {ok, LSock} ->
-            Lobby = spawn(fun() -> lobby([], 0) end),
-            spawn(fun() -> acceptor(LSock) end),
+            register(match_manager, spawn(fun() -> lobby([]) end)),
             Filename = "file_syntax.txt",
-            loop(file_manager:readContent(Filename), Lobby);
+            Accounts = file_manager:readContent(Filename),
+            register(accounts_manager, spawn(fun() -> accounts_management(Accounts) end)),
+            register(file_manager, spawn(fun() -> file_management() end)),
+            acceptor(LSock);
         {error, Reason} ->
             io:fwrite("Error generating socket\n"),
             Reason
@@ -29,6 +31,14 @@ acceptor(LSock) ->
     userAuth(Socket).
 
 
+request({Request, User, Pwd}) -> 
+    accounts_manager ! {Request, self(), User, Pwd},
+    receive
+        {Result, accounts_manager} ->
+            Result
+    end.
+
+
 userAuth(Sock) ->
     receive
         %recebe msg do cliente
@@ -37,100 +47,74 @@ userAuth(Sock) ->
             Info = string:split(ListOfInfo, ",", all),
             case Info of
                 ["create_account", User, Pwd] ->
-                    ?MODULE ! {create_account, User, Pwd, self()},
-                    receive
-                        success -> gen_tcp:send(Sock, "success\n");
-                        user_exists -> gen_tcp:send(Sock, "user_exists\n")
+                    Result = request({create_account, User, Pwd}),
+                    case Result of
+                        user_exists ->
+                            gen_tcp:send(Sock, "User already exists!~n");
+                            %match_manager ! {newPlayer, User, self()};
+                        account_created -> 
+                            gen_tcp:send(Sock, "User created!~n"),
+                            accounts_manager ! write_data
                     end,
                     userAuth(Sock);
                 ["delete_account", User, Pwd] ->
-                    ?MODULE ! {delete_account, User, Pwd, self()},
-                    receive
-                        success -> gen_tcp:send(Sock, "success\n");
-                        invalid_pwd -> gen_tcp:send(Sock, "invalid_pwd\n");
-                        invalid_user -> gen_tcp:send(Sock, "invalid_user\n")
+                    Result = request({delete_account, User, Pwd}),
+                    case Result of
+                        invalid_user ->
+                            gen_tcp:send(Sock, "User does not exist!~n");
+                        invalid_pwd ->
+                            gen_tcp:send(Sock, "Invalid password!~n");
+                        account_deleted ->
+                            gen_tcp:send(Sock, "Account deleted with success!~n")
                     end,
+                    accounts_manager ! write_data,
                     userAuth(Sock);
                 ["login", User, Pwd] ->
-                    ?MODULE ! {login, self(), User, Pwd},
-                    receive
-                        success -> gen_tcp:send(Sock, "success\n");
-                        invalid_pwd -> gen_tcp:send(Sock, "invalid_pwd\n");
-                        invalid_user -> gen_tcp:send(Sock, "invalid_user\n")
+                    Result = request({login, User, Pwd}),
+                    case Result of
+                        invalid_user ->
+                            gen_tcp:send(Sock, "User does not exist!~n");
+                        invalid_pwd ->
+                            gen_tcp:send(Sock, "Invalid password!~n");
+                        login_sucessfully ->
+                            gen_tcp:send(Sock, "Logged in with success!~n")
                     end,
                     userAuth(Sock);
                 ["logout", User, Pwd] ->
-                    ?MODULE ! {logout, self(), User, Pwd},
-                    receive
-                        success -> gen_tcp:send(Sock, "success\n");
-                        invalid_pwd -> gen_tcp:send(Sock, "invalid_pwd\n");
-                        invalid_user -> gen_tcp:send(Sock, "invalid_user\n")
-                    end,
-                    userAuth(Sock);
+                    Result = request({logout, User, Pwd}),
+                    case Result of
+                        invalid_user ->
+                            gen_tcp:send(Sock, "User does not exist!~n");
+                        logout_sucessfully ->
+                            gen_tcp:send(Sock, "Logged out with success!~n")
+                    end;
                 ["statistics", _] ->
-                    ?MODULE ! {statistics, self()},
+                    accounts_manager ! {statistics, self()},
                     receive
                         Stats ->
-                            List = [string:join([User, integer_to_list(Wg)], " - ") || {User, Wg} <- Stats],
-                            StatsList = string:join(List, "\n"),
-                            gen_tcp:send(Sock, string:join([StatsList, "\n"], ""))
+                            gen_tcp:send(Sock, Stats)
                     end,
                     userAuth(Sock);
-                ["join", User, UserLevel] ->
-                    ?MODULE ! {join, self(), User, UserLevel},
-                    receive
-                        success -> gen_tcp:send(Sock, "success\n");
-                        not_logged_in -> gen_tcp:send(Sock, "not_logged_in\n")
-                    end,
-                    userAuth(Sock);
+                ["join", User] ->
+                    Result = request({is_logged_in, User, something}),
+                    case Result of
+                        true ->
+                            gen_tcp:send(Sock, "User joined the lobby!~n"),
+                            accounts_manager ! {user_level, User, self()},
+                            receive
+                                Level ->
+                                    match_manager ! {join, self(), User, Level},
+                                    Match = initGame(Sock, User),
+                                    userGameFlow(Sock, User, Match)
+                            end,
+                            gen_tcp:send(Sock, "User joined the lobby!~n");
+                        false ->
+                            gen_tcp:send(Sock, "User not logged in!~n"),
+                            userAuth(Sock)
+                    end;
                 _ -> io:fwrite("Error!\n")
             end;
         _ -> userAuth(Sock)
-    end.
-
-
-loop(Registers, Lobby) ->
-    receive
-        {start, From} ->
-            NewLobby = spawn(fun() -> lobby([], 0) end),
-            loop(Registers, NewLobby);
-        {finish, From, User} ->
-            io:fwrite("User ~p Won!\nGame over!\n", [User]),
-            From ! winner,
-            NewRegisters = user_manager:update_user_score(Registers, User),
-            if
-                NewRegisters == false ->
-                    loop(Registers, Lobby);
-                true ->
-                    loop(NewRegisters, Lobby)
-            end;
-        {create_account, User, Pwd, From} ->
-            NewRegisters = user_manager:create_account(Registers, From, User, Pwd),
-            loop(NewRegisters, Lobby);
-        {delete_account, User, Pwd, From} ->
-            NewRegisters = user_manager:delete_account(Registers, From, User, Pwd),
-            loop(NewRegisters, Lobby);
-        {login, From, User, Pwd} ->
-            NewRegisters = user_manager:login(Registers, From, User, Pwd),
-            loop(NewRegisters, Lobby);
-        {logout, From, User, Pwd} ->
-            NewRegisters = user_manager:logout(Registers, From, User, Pwd),
-            loop(NewRegisters, Lobby);
-        {statistics, From} ->
-            Stats = [{User, Wg} || {User, {_, Wg, _}} <- Registers],
-            From ! Stats,
-            loop(Registers, Lobby);
-        {join, User, Pwd, From} ->
-            Status = user_manager:is_logged_in(Registers, User, Pwd),
-
-            if
-                Status ->
-                    UserLevel = user_manager:get_user_level(Registers, User),
-                    Lobby ! {join, User, From, UserLevel};
-                true ->
-                    From ! not_logged_in
-            end,
-            loop(Registers, Lobby)
     end.
 
 
@@ -145,27 +129,28 @@ lobby(Pids) ->
                     lobby(NewPids);
                 true ->
                     case lists:member({From, User, UserLevel}, Pids) of
-                        false ->
-                            case matchMaking([Pids | {From, User, UserLevel}]) ->
+                        false -> 
+                            case matchMaking([Pids | {From, User, UserLevel}]) of
                                 {User1, User2} ->
                                     {From1, Username1, _} = User1,
                                     {From2, Username2, _} = User2,
-                                    game:game([{From1, Username1}, {From2, Username2}]),
+                                    spawn(fun() -> game:game([{From1, Username1}, {From2, Username2}]) end),
                                     NewPids = lists:delete(User1, Pids),
-                                    %ELIMINAR O USER2??????
-                                    lobby(NewPids);
+                                    NewPids2 = lists:delete(User2, NewPids),
+                                    lobby(NewPids2);
                                 false ->
                                     lobby([Pids | {From, User, UserLevel}])
                             end;
                         true ->
                             From ! already_in
-                    end,
+                    end
             end,
             From ! success;
-        {leave, From, User} ->
+        {leave, From, User} -> %MANTER ESTE REQUEST?????? NAO ESTA A SER USADO
             NewPids = lists:delete({From, User}, Pids),
+            io:fwrite("User ~s left the lobby.~n", [User]),
             From ! success,
-            NewPids
+            lobby(NewPids)
     end.
 
 
@@ -177,13 +162,156 @@ matchMaking([H | T]) ->
     end.
 
 
-sameLevel(Elem, []) -> false;
-sameLevel(Elem, [H | T]) ->
-    {From, User, Level} = Elem,
-    {From2, User2, Level2} = H,
+sameLevel(_, []) -> false;
+sameLevel(Elem, [H | T]) -> 
+    {_, _, Level} = Elem,
+    {_, _, Level2} = H,
     if
         Level == Level2 ->
             {true, Elem, H};
         true ->
             sameLevel(Elem, T)
+    end.
+
+
+initGame(Sock, User) ->
+    match_manager ! {join, User, self()},
+
+    receive
+        {initMatch, Data, MatchPid, match_manager}->
+            sendInitData(Sock, Data),
+            MatchPid;
+        _ ->
+            io:fwrite("User ~s left the match.~n", [User]),
+            request({logout, User, something}),
+            match_manager ! {leave, User, self()}
+    end.
+
+
+gameOver(Sock, Pid, User, Flag) ->
+    if
+        Flag == 1 ->
+            gen_tcp:send(Sock, "You won!~n"),
+            accounts_manager ! {update_victories, User},
+            accounts_manager ! write_data;
+        Flag == 0 ->
+            gen_tcp:send(Sock, "You lost!~n")
+    end,
+
+    match_manager ! {leave, Pid, User},
+    afterGameOver(Sock, User).
+
+
+afterGameOver(Sock, User) ->
+    receive
+        {tcp, _, Data} ->
+            Info = re:replace(Data,"\\n|\\r", "",[global,{return,list}]),
+            Info1 = string:split(Info,",",all),
+            
+            case Info1 of
+                ["Quit"] ->
+                    request({logout, User, something}),
+                    userAuth(Sock);
+                ["PlayAgain"] ->
+                    Result = request({is_logged_in, User, something}),
+                    case Result of
+                        true ->
+                            gen_tcp:send(Sock, "User joined the lobby!~n"),
+                            accounts_manager ! {user_level, User, self()},
+                            receive
+                                Level ->
+                                    match_manager ! {join, self(), User, Level},
+                                    Match = initGame(Sock, User),
+                                    userGameFlow(Sock, User, Match)
+                            end;
+                        false ->
+                            gen_tcp:send(Sock, "User not logged in!~n"),
+                            userAuth(Sock)
+                    end
+            end;
+        _ ->
+            request({logout, User, something}),
+            match_manager ! {leave, User, self()}
+    end.
+
+
+userGameFlow(Sock, User, MatchPid) ->
+    receive
+        {gameover, Pid, User, Flag} ->
+            gameOver(Sock, Pid, User, Flag)
+        after 0 ->
+            receive
+                {gameOver, Pid, User, Flag} ->
+                    gameOver(Sock, Pid, User, Flag);
+                {updateInfo, UpdatedData, MatchPid} ->
+                    sendUpdatedData(Sock, UpdatedData),
+                    userGameFlow(Sock, User, MatchPid);        
+                {tcp, _, Data} ->
+                    Info = re:replace(Data,"\\n|\\r", "",[global,{return,list}]),
+                    Info1 = string:split(Info,",",all),
+                    case Info1 of
+                        ["KeyChanged", Key, "True"] -> 
+                            match_manager ! {keyChanged, Key, true, self()};
+                        ["KeyChanged", Key, "False"] -> 
+                            match_manager ! {keyChanged, Key, false, self()}
+                    end,
+                    userGameFlow(Sock, User, MatchPid);
+                _ ->
+                    io:fwrite("User ~s: Error.~n", [User]),
+                    request({logout, User, something}),
+                    match_manager ! {leave, User, self()}
+            end
+    end.
+
+
+sendPlayersData(Sock, Data) ->
+    Players = maps:get(players, Data),
+    ListOfPlayers = [Player || {_, Player} <- maps:to_list(Players)],
+    sendPlayerData(Sock, ListOfPlayers).
+
+
+sendPlayerData(_, []) ->
+    ok;
+sendPlayerData(Sock, [H | T]) ->
+    User = maps:get(user, H),
+    X = maps:get(x, H),
+    Y = maps:get(y, H),
+    Angle = maps:get(angle, H),
+    Score = maps:get(score, H),
+    gen_tcp:send(Sock, io_lib:fwrite("P,~s,~w,~w,~w,~w~n", [User, X, Y, Angle, Score])),
+    sendPlayerData(Sock, T).
+
+
+sendItemsData(Sock, Data) ->
+    Items = maps:get(items, Data),
+    sendItemData(Sock, Items).
+
+sendItemData(_, []) ->
+    true;
+sendItemData(Sock, [Item | Items]) ->
+    X = maps:get(x, Item),
+    Y = maps:get(y, Item),
+    Type = maps:get(type, Item),
+    gen_tcp:send(Sock, io_lib:fwrite("I,~s,~w,~w~n", [Type, X, Y])),
+    sendItemData(Sock, Items).
+    
+
+sendInitData(Sock, Data) ->
+    sendPlayerData(Sock, Data),
+    sendItemsData(Sock, Data).
+
+
+sendUpdatedData(Sock, Data) ->
+    case maps:find(players, Data) of
+        {ok, Players} ->
+            sendPlayersData(Sock, Players);
+        error ->
+            pass
+    end,
+
+    case maps:find(items, Data) of
+        {ok, Items} ->
+            sendItemsData(Sock, Items);
+        error ->
+            pass
     end.

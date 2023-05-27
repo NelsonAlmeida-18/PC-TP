@@ -1,5 +1,12 @@
 -module(file_manager).
--export([readContent/1, parser/2, parseSingleField/1, data_to_text/1, account_to_string/1, write_data/2, test/0]).
+-export([readContent/1, parser/2, parseSingleField/1, data_to_text/1, account_to_string/1, write_data/2, test/0, file_management/0]).
+
+
+file_management() ->
+    receive
+        {write_data, Data, Filename} ->
+            write_data(Filename, Data)
+    end.
 
 
 readContent(Filename) -> 
