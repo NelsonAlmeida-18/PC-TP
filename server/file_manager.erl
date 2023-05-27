@@ -5,7 +5,8 @@
 file_management() ->
     receive
         {write_data, Data, Filename} ->
-            write_data(Filename, Data)
+            write_data(Filename, Data),
+            file_management()
     end.
 
 
@@ -27,40 +28,49 @@ readContent(Filename) ->
 %UPW -> User, Password, Wg
 parser([], Data) -> Data;
 parser([H | T], Data) ->
-    [U | PW] = string:split(H, ","),
-    User = parseSingleField(U),
-    [P | W] = string:split(PW, ","),
-    Pwd = parseSingleField(P),
-    Wg = parseSingleField(W),
-
+    io:fwrite("Header ~p~n", [H]),
     if 
-        User == [<<>>] ->
-            Data1 = Data;
+        H == [<<>>] -> 
+            parser(T,Data);
         true ->
-            Data1 = maps:put(User, {Pwd, Wg, false}, Data)
-    end,
-    if
-        T == [] ->
-            Data1;
-        true ->
-            parser(string:split(T, "\n"), Data1)
+            [U | PW] = string:split(H, ","),
+            User = parseSingleField(U),
+            [P | W] = string:split(PW, ","),
+            Pwd = parseSingleField(P),
+            %io:fwrite("Pwd ~p~n", [User]),
+            Wg = parseSingleField(W),
+            %io:fwrite("Wg ~p~n", [Wg]),
+            if 
+                User == [<<>>] ->
+                    Data1 = Data;
+                true ->
+                    Data1 = maps:put(User, {Pwd, list_to_integer(Wg), false}, Data)
+            end,
+            if
+                T == [] ->
+                    Data1;
+                true ->
+                    parser(string:split(T, "\n"), Data1)
+            end
     end.
 
 
 
 parseSingleField(Field) ->
     [_ | Value] = string:split(Field, ":"),
-    Value.
+    [UserStr] = Value,
+    binary_to_list(UserStr).
 
 
 account_to_string({User, {Pwd, Wg, _}}) ->
-    string:join(["$USERNAME:" ++ User,
-                 "$PASSWORD:" ++ Pwd,
-                 "$WG:" ++ Wg], ",").
+    string:join( [string:join(["$USERNAME", User], ":"),
+                 string:join(["$PASSWORD" , Pwd],":"),
+                 string:join(["$WG" , integer_to_list(Wg)], ":")], ",").
 
 
 data_to_text([]) -> "";
 data_to_text([H | T]) ->
+    io:fwrite("Payload: ~p~n", [H]),
     string:join([account_to_string(H), data_to_text(T)], "\n").
 
 
@@ -70,5 +80,5 @@ write_data(Filename, Accounts) ->
 
 test() ->
     Map = readContent("file_syntax.txt"),
-    Map1 = maps:put([<<"nelson">>], {[<<"1234">>], [<<"5">>], false}, Map),
+    Map1 = maps:put([<<"Goncalo">>], {[<<"1234">>], [<<"5">>], false}, Map),
     write_data("file_syntax.txt", Map1).

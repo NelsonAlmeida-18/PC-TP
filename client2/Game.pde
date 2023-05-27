@@ -288,6 +288,7 @@ void mouseClicked(){
       
         this.cm.joinMatch(usernameField.value);
         String response = this.cm.receive();
+        response = this.cm.receive();
         print(response);
      } 
   }
