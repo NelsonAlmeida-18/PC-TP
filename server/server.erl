@@ -26,7 +26,7 @@ server(Port) ->
 
 
 acceptor(LSock) ->
-    case gen_tcp:accept(LSock) of 
+    case gen_tcp:accept(LSock) of
         {ok, Socket} ->
             spawn(fun() -> acceptor(LSock) end),
             userAuth(Socket);
@@ -34,7 +34,7 @@ acceptor(LSock) ->
             io:fwrite("Error listening to socket")
     end.
 
-request({Request, User, Pwd}) -> 
+request({Request, User, Pwd}) ->
     accounts_manager ! {Request, self(), User, Pwd},
     receive
         {Result, accounts_manager} ->
@@ -55,7 +55,7 @@ userAuth(Sock) ->
                             gen_tcp:send(Sock, "User already exists!\n"),
                             userAuth(Sock);
                             %match_manager ! {newPlayer, User, self()};
-                        account_created -> 
+                        account_created ->
                             gen_tcp:send(Sock, "User created!\n"),
                             accounts_manager ! write_data,
                             userAuth(Sock)
@@ -132,8 +132,8 @@ lobby(Pids) ->
                     lobby(NewPids);
                 true ->
                     case lists:member({From, User, UserLevel}, Pids) of
-                        false -> 
-                            TempPid =[Pids | {From, User, UserLevel}],
+                        false ->
+                            TempPid = [{From, User, UserLevel} | Pids],
                             case matchMaking(TempPid) of
                                 {User1, User2} ->
                                     {From1, Username1, _} = User1,
@@ -160,7 +160,7 @@ lobby(Pids) ->
 
 matchMaking([]) -> false;
 matchMaking([H | T]) ->
-    Result = sameLevel(H, T),
+    Result = sameLevel(T, H),
     case Result of
         {true, User1, User2} -> {User1, User2};
         _ -> matchMaking(T)
@@ -168,18 +168,18 @@ matchMaking([H | T]) ->
 
 
 sameLevel(_, []) -> false;
-sameLevel(Elem, [H | T]) -> 
+sameLevel([H | T], Elem) ->
     {_, _, Level} = Elem,
-    case H of 
-        {_ , _ , Level2} -> 
+    case H of
+        {_ , _ , Level2} ->
             if
                 Level == Level2 ->
                     {true, Elem, H};
                 true ->
-                    sameLevel(Elem, T)
+                    sameLevel(T, Elem)
             end;
-        _ -> 
-            sameLevel(Elem, [])
+        _ ->
+            sameLevel([], Elem)
     end.
 
 
@@ -217,7 +217,7 @@ afterGameOver(Sock, User) ->
         {tcp, _, Data} ->
             Info = re:replace(Data,"\\n|\\r", "",[global,{return,list}]),
             Info1 = string:split(Info,",",all),
-            
+
             case Info1 of
                 ["Quit"] ->
                     request({logout, User, something}),
@@ -255,14 +255,14 @@ userGameFlow(Sock, User, MatchPid) ->
                     gameOver(Sock, Pid, User, Flag);
                 {updateInfo, UpdatedData, MatchPid} ->
                     sendUpdatedData(Sock, UpdatedData),
-                    userGameFlow(Sock, User, MatchPid);        
+                    userGameFlow(Sock, User, MatchPid);
                 {tcp, _, Data} ->
                     Info = re:replace(Data,"\\n|\\r", "",[global,{return,list}]),
                     Info1 = string:split(Info,",",all),
                     case Info1 of
-                        ["KeyChanged", Key, "True"] -> 
+                        ["KeyChanged", Key, "True"] ->
                             match_manager ! {keyChanged, Key, true, self()};
-                        ["KeyChanged", Key, "False"] -> 
+                        ["KeyChanged", Key, "False"] ->
                             match_manager ! {keyChanged, Key, false, self()}
                     end,
                     userGameFlow(Sock, User, MatchPid);
@@ -304,7 +304,7 @@ sendItemData(Sock, [Item | Items]) ->
     Type = maps:get(type, Item),
     gen_tcp:send(Sock, io_lib:fwrite("I,~s,~w,~w\n", [Type, X, Y])),
     sendItemData(Sock, Items).
-    
+
 
 sendInitData(Sock, Data) ->
     sendPlayerData(Sock, Data),
