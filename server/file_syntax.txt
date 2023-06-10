@@ -1,0 +1,2 @@
+$USERNAME:teste,$PASSWORD:teste,$WG:0
+$USERNAME:teste1,$PASSWORD:teste1,$WG:0

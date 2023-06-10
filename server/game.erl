@@ -4,7 +4,7 @@
 
 game(Pids) ->
     io:format("Pids: ~p~n", [Pids]),
-    ?MODULE ! start,
+    %?MODULE ! start,
     [From ! start || {From, _, _} <- Pids],
     setup(Pids, #{}).
 
@@ -21,10 +21,14 @@ setup([], Players) ->
                         dataSender(Data, Pid) end),
     keysManager(Players, Sender);
 setup([{From, User} | T], Players) ->
-    Keys = #{},
-    Keys = maps:put(w, false, Keys),
-    Keys = maps:put(a, false, Keys),
-    Keys = maps:put(d, false, Keys),
+    % Keys = #{},
+    % Keys = maps:put(w, false, Keys),
+    % Keys = maps:put(a, false, Keys),
+    % Keys = maps:put(d, false, Keys),
+    % Player = spawnPlayer(User, Players, 35, Keys),
+    % Players = maps:put(From, Player, Players),
+    % setup(T, Players).^
+    Keys = maps:put(d, false, maps:put(a, false, maps:put(w, false, #{}))),
     Player = spawnPlayer(User, Players, 35, Keys),
     Players = maps:put(From, Player, Players),
     setup(T, Players).
