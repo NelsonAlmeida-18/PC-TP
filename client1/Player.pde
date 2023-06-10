@@ -2,6 +2,7 @@ class Player {
     PVector pos = new PVector(100,100); // (x,y)
     float r; // raio
     int p; // pontuação
+    ConnectionManager cm;
 
     Player() {
         this.r = 35;
@@ -12,6 +13,10 @@ class Player {
         this.pos.x = x;
         this.pos.y = y;
         this.p = p;
+    }
+
+    void addCM(ConnectionManager cm) {
+        this.cm = cm;
     }
 
     void render() {
@@ -27,17 +32,17 @@ class Player {
 
     void keyPressed() {
         if (key == 'w') {
-
+            this.cm.sendMessage("keyPressed,w");
         } else if (key == 'd') {
-
+            this.cm.sendMessage("keyPressed,d");
         } else if (key == 'a') {
-
+            this.cm.sendMessage("keyPressed,a");
         }
     }
 
     void keyReleased() {
         if (key == 'w') {
-
+            this.cm.sendMessage("keyReleased,w");
         }
     }
 }

@@ -55,15 +55,19 @@ String time;
 void setup() {
     size(1280,720);
     setState(State.MENU);
-    
+
     try{
       cm = new ConnectionManager("172.30.196.149", 9000);
       //verificar se o cm se conseguiu conectar
       //Notificar o cliente que não dá para entrar
       //dar await enquanto o connectionManager não se conseguir conectar
       //print("Não se conseguiu conectar ao servidor");
-    } catch(Exception e) {}
-    
+      player1.addCM(cm);
+      player2.addCM(cm);
+    } catch(Exception e) {
+      e.printStackTrace();
+    }
+
     // MENU
     img_menu = loadImage("./Images/loginScreen.png");
 
@@ -85,7 +89,7 @@ void setup() {
 
     submitBtn = new Button("./Images/submitBtn.png", "./Images/submitBtnHover.png");
     submitBtn.updatePosition(passwordField.x+submitBtn.width/4,passwordField.y+passwordField.height+padding);
-    
+
     playAgainBtn = new Button("./Images/playAgainBtn.png", "./Images/playAgainHover.png");
     playAgainBtn.updatePosition(width/2-playAgainBtn.width/2,height/2-playAgainBtn.height/2+padding);
 
@@ -228,6 +232,7 @@ void parser(String string) {
 
             i += 3;
         }
+
     } else if (tokens[0].equals("You won!")) {
         this.won = true;
 
@@ -269,6 +274,7 @@ void setState(State newState) {
 
 void keyPressed() {
     player1.keyPressed();
+    player2.keyPressed();
 
     if (usernameField.isActive()) {
         //atualiza campo com o input do utilizador
@@ -284,6 +290,7 @@ void keyPressed() {
 
 void keyReleased() {
     player1.keyReleased();
+    player2.keyReleased();
 }
 
 void mouseClicked(){
@@ -369,7 +376,7 @@ void mouseClicked(){
       playBtn.reset();
     }
   }
-  
+
   if(mouseX>exitBtn.x && mouseX<exitBtn.x + exitBtn.width && mouseY>exitBtn.y && mouseY<exitBtn.y + exitBtn.height) {
     if (state == State.END) {
       exit();
