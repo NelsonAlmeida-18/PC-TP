@@ -25,8 +25,6 @@ class ConnectionManager {
       e.printStackTrace();
     }
   }
-  
-
 
   public String receive() {
     String message = "";
@@ -38,13 +36,13 @@ class ConnectionManager {
     }
     return message;
   }
-  
+
   public Boolean registerUser(String username, String password){
       this.out.println("create_account,"+username+","+password);
       this.out.flush();
       return true;
   }
-  
+
   public Boolean loginUser(String username, String password){
       if(this.isActive)
         this.out.println("login,"+username+","+password);
@@ -52,16 +50,21 @@ class ConnectionManager {
       //verificar resposta para saver se foic om suceesso
       return true;
   }
-  
+
   public Boolean logoutUser(String username, String password){
     this.out.println("logout,"+username+","+password);
     this.out.flush();
     return true;
   }
-  
+
   public void joinMatch(String username){
     this.out.println("join,"+username);
     this.out.flush();
   }
-  
+
+  public void sendMessage(String message) {
+    this.out.println(message);
+    this.out.flush();
+  }
+
 }

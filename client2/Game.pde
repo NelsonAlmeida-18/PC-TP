@@ -12,7 +12,7 @@ enum State {
     GAME,
     PLAY,
     END,
-    findingMatch
+    findingMatch,
 }
 
 enum Type {
@@ -23,6 +23,7 @@ enum Type {
 
 State state;
 PImage img_menu, img_game;
+PImage won_BG, lost_BG;
 
 // MENU
 Button loginBtn;
@@ -32,10 +33,16 @@ Button backBtn;
 Button playBtn;
 InputField usernameField;
 InputField passwordField;
+Button playAgainBtn;
+Button exitBtn;
 String font;
 int padding=20;
 Boolean findingMatch=false;
-ConnectionManager cm = new ConnectionManager("192.168.0.101", 9002);
+ConnectionManager cm;
+boolean won = false;
+String success_message = "";
+String error_message = "";
+
 
 // GAME
 Player player1 = new Player();
@@ -48,6 +55,18 @@ String time;
 void setup() {
     size(1280,720);
     setState(State.MENU);
+
+    try{
+      cm = new ConnectionManager("172.30.196.149", 9000);
+      //verificar se o cm se conseguiu conectar
+      //Notificar o cliente que não dá para entrar
+      //dar await enquanto o connectionManager não se conseguir conectar
+      //print("Não se conseguiu conectar ao servidor");
+      player1.addCM(cm);
+      player2.addCM(cm);
+    } catch(Exception e) {
+      e.printStackTrace();
+    }
 
     // MENU
     img_menu = loadImage("./Images/loginScreen.png");
@@ -68,12 +87,21 @@ void setup() {
     playBtn = new Button("./Images/play.png", "./Images/playHover.png");
     playBtn.updatePosition(width/2-playBtn.width/2, loginBtn.y);
 
-
     submitBtn = new Button("./Images/submitBtn.png", "./Images/submitBtnHover.png");
     submitBtn.updatePosition(passwordField.x+submitBtn.width/4,passwordField.y+passwordField.height+padding);
 
+    playAgainBtn = new Button("./Images/playAgainBtn.png", "./Images/playAgainHover.png");
+    playAgainBtn.updatePosition(width/2-playAgainBtn.width/2,height/2-playAgainBtn.height/2+padding);
+
+    exitBtn = new Button("./Images/exitBtn.png", "./Images/exitBtnHover.png");
+    exitBtn.updatePosition(playAgainBtn.x, playAgainBtn.y + playAgainBtn.height+padding);
+
     // GAME
     img_game = loadImage("./Images/ringBG.png");
+
+    // END
+    won_BG = loadImage("./Images/YouWon_BG.jpg");
+    lost_BG = loadImage("./Images/YouLost_BG.jpg");
 }
 
 void draw() {
@@ -86,7 +114,7 @@ void draw() {
             image(backBtn.image, backBtn.x, backBtn.y);
 
             break;
-            
+
         case PLAY:
           image(img_menu,0,0);
           image(backBtn.image, backBtn.x, backBtn.y);
@@ -148,6 +176,15 @@ void draw() {
         case END:
             surface.setSize(1280, 720);
 
+            if (won) {
+                image(won_BG, 0, 0);
+            } else {
+                image(lost_BG, 0, 0);
+            }
+
+            image(playAgainBtn.image, playAgainBtn.x, playAgainBtn.y);
+            image(exitBtn.image, exitBtn.x, exitBtn.y);
+
             break;
     }
 }
@@ -195,6 +232,39 @@ void parser(String string) {
 
             i += 3;
         }
+
+    } else if (tokens[0].equals("You won!")) {
+        this.won = true;
+
+    } else if (tokens[0].equals("You lost!")) {
+        this.won = false;
+
+    } else if (tokens[0].equals("User already exists!")) {
+        error_message = "User already exists!";
+
+    } else if (tokens[0].equals("User created!")) {
+        success_message = "User created!";
+
+    } else if (tokens[0].equals("User does not exist!")) {
+        error_message = "User does not exist!";
+
+    } else if (tokens[0].equals("Invalid password!")) {
+        error_message = "Invalid password!";
+
+    } else if (tokens[0].equals("Account deleted with success!")) {
+        success_message = "Account deleted with success!";
+
+    } else if (tokens[0].equals("Logged in with success!")) {
+        success_message = "Logged in with success!";
+
+    } else if (tokens[0].equals("Logged out with success!")) {
+        success_message = "Logged out with success!";
+
+    } else if (tokens[0].equals("User joined the lobby!")) {
+        success_message = "User joined the lobby!";
+
+    } else if (tokens[0].equals("User not logged in!")) {
+        error_message = "User not logged in!";
     }
 }
 
@@ -204,6 +274,7 @@ void setState(State newState) {
 
 void keyPressed() {
     player1.keyPressed();
+    player2.keyPressed();
 
     if (usernameField.isActive()) {
         //atualiza campo com o input do utilizador
@@ -219,13 +290,14 @@ void keyPressed() {
 
 void keyReleased() {
     player1.keyReleased();
+    player2.keyReleased();
 }
 
 void mouseClicked(){
   if(mouseX > loginBtn.x && mouseX<(loginBtn.x+loginBtn.width) && state==State.MENU){
     if(mouseY>loginBtn.y && mouseY<(loginBtn.y+loginBtn.height)){
       //passar para menu de login
-      state=State.LOGIN;   
+      state=State.LOGIN;
       loginBtn.reset();
     }
     //passar para menu de registo
@@ -235,7 +307,7 @@ void mouseClicked(){
     }
   }
 
- 
+
   if(mouseX > usernameField.x && mouseX<(usernameField.x+usernameField.width) && (state==State.LOGIN || state==State.REGISTER)){
     if(mouseY>usernameField.y && mouseY<(usernameField.y+usernameField.height)){
       //atualiza o username
@@ -255,14 +327,14 @@ void mouseClicked(){
       usernameField.deactivate();
     }
   }
-  
+
   //verificar se o botão de submit foi clicado, se sim, fazer request e analisar a resposta
   //caso esteja no login e este seja válido transita para o ecrã de play
   //caso esteja no registo e este seja válido transita para o ecrã main
   if(mouseX>submitBtn.x && mouseX<submitBtn.x+submitBtn.width && mouseY>submitBtn.y && mouseY<submitBtn.y+submitBtn.height){
      //verificar se está no ecrã de login
      if(state==State.LOGIN){
-        //fazer request e analisar a resposta  
+        //fazer request e analisar a resposta
         this.cm.loginUser(usernameField.value, passwordField.value);
         String response = this.cm.receive();
         if(response.equals("Logged in with success!")){
@@ -281,16 +353,15 @@ void mouseClicked(){
         }
      }
   }
-  
+
   //verificar se o botão de play foi clicado, se sim, ficar à espera de encontrar partida e fazer animação DIY
   if(state==State.PLAY){
       if(mouseX>playBtn.x && mouseX<playBtn.x+playBtn.width && mouseY>playBtn.y && mouseY<playBtn.y+playBtn.height){
-      
+
         this.cm.joinMatch(usernameField.value);
         String response = this.cm.receive();
-        response = this.cm.receive();
         print(response);
-     } 
+     }
   }
 
   if(mouseX>backBtn.x && mouseX<backBtn.x+backBtn.width && mouseY>backBtn.y && mouseY<backBtn.y+backBtn.height){
@@ -303,6 +374,19 @@ void mouseClicked(){
       passwordField.reset();
       backBtn.reset();
       playBtn.reset();
+    }
+  }
+
+  if(mouseX>exitBtn.x && mouseX<exitBtn.x + exitBtn.width && mouseY>exitBtn.y && mouseY<exitBtn.y + exitBtn.height) {
+    if (state == State.END) {
+      exit();
+    }
+  }
+
+  if(mouseX>playAgainBtn.x && mouseX<playAgainBtn.x + playAgainBtn.width && mouseY>playAgainBtn.y && mouseY<playAgainBtn.y + playAgainBtn.height) {
+    if (state == State.END) {
+      state = State.MENU;
+      playAgainBtn.reset();
     }
   }
 }

@@ -3,14 +3,15 @@
 
 
 game(Pids) ->
-    ?MODULE ! start,
+    io:format("Pids: ~p~n", [Pids]),
+    %?MODULE ! start,
     [From ! start || {From, _, _} <- Pids],
     setup(Pids, #{}).
 
 
-setup([], Players) -> 
+setup([], Players) ->
     Pid = self(),
-    Sender = spawn(fun() -> 
+    Sender = spawn(fun() ->
                         Data = #{},
                         Data1 = maps:put(players, Players, Data),
                         Pids = maps:keys(Players),
@@ -20,10 +21,14 @@ setup([], Players) ->
                         dataSender(Data, Pid) end),
     keysManager(Players, Sender);
 setup([{From, User} | T], Players) ->
-    Keys = #{},
-    Keys = maps:put(w, false, Keys),
-    Keys = maps:put(a, false, Keys),
-    Keys = maps:put(d, false, Keys),
+    % Keys = #{},
+    % Keys = maps:put(w, false, Keys),
+    % Keys = maps:put(a, false, Keys),
+    % Keys = maps:put(d, false, Keys),
+    % Player = spawnPlayer(User, Players, 35, Keys),
+    % Players = maps:put(From, Player, Players),
+    % setup(T, Players).^
+    Keys = maps:put(d, false, maps:put(a, false, maps:put(w, false, #{}))),
     Player = spawnPlayer(User, Players, 35, Keys),
     Players = maps:put(From, Player, Players),
     setup(T, Players).
@@ -40,7 +45,7 @@ newPosition(Players, Size) ->
         true ->
             newPosition(Players, Size)
     end.
-    
+
 
 spawnPlayer(User, Players, Size, PressedKeys) ->
     X = rand:uniform(900),
@@ -105,7 +110,7 @@ validItemSpawn(X, Y, Size, [Item | Items]) ->
     Y1 = maps:get(y, Item),
     Distance = math:sqrt(math:pow(X1 - X, 2) + math:pow(Y1 - Y, 2)),
 
-    if 
+    if
         Distance < (Size * 2)+50 ->
             false;
         true ->
@@ -164,7 +169,7 @@ simulate(MatchData, Pid) ->
 
     %verificação de colisões com items, players e sucessiva atualização de info
     UpdatedMatchData1 = eatingKillingActions(UpdatedMatchData),
-    
+
     OldPlayers = maps:get(players, MatchData),
     OldItems = maps:get(items, MatchData),
     NewItems = maps:get(items, UpdatedMatchData1),
@@ -271,9 +276,9 @@ keysActions(Speed, Angle, AngleVariation, Acceleration, SpeedVariation, [{Key, t
         w ->
             UpdatedAcc = true,
             UpdatedSpeed = SpeedVariation;
-        d -> 
+        d ->
             UpdatedAngle = Angle + AngleVariation;
-        a -> 
+        a ->
             UpdatedAngle = Angle - AngleVariation
     end,
     keysActions(UpdatedSpeed, UpdatedAngle, AngleVariation, UpdatedAcc, SpeedVariation, T).
@@ -328,7 +333,7 @@ respawnPlayers(Players, [Pid | DeadPids], UpdatedPlayers) ->
     Keys = maps:put(w, false, Keys),
     Keys = maps:put(a, false, Keys),
     Keys = maps:put(d, false, Keys),
-    
+
     UpdatedPlayer = maps:put(x, X, Player),
     UpdatedPlayer1 = maps:put(y, Y, UpdatedPlayer),
     UpdatedPlayer2 = maps:put(pressedKeys, Keys, UpdatedPlayer1),
@@ -384,7 +389,7 @@ eatingKillingActions(MatchData) ->
     %ATUALIZAR PLAYERS CONFORME ITEMS CONSUMIDOS
 
     UpdatedMatchData = maps:put(players, UpdatedPlayers1, MatchData), %ALTERAR PLAYERS
-    
+
     NumOfItems = length(NotEatenItems),
     if
         NumOfItems < 8 ->
@@ -405,7 +410,7 @@ checkPlayersColisions([{PidPredator, Predator} | T], PlayersList, PlayersMap, De
     if
         UpdatedDeadPids == DeadPids ->
             PlayersUpdated = PlayersMap;
-        true -> 
+        true ->
             PlayerUpdated = updateScore(1, Predator),
             PlayersUpdated = maps:put(PidPredator, PlayerUpdated, PlayersMap)
     end,
@@ -482,7 +487,7 @@ playerItemsColisions({From, Data}, [Item | Items], PlayersMap, NotEatenItems) ->
     end.
 
 
-colisionPlayerItemAction(Player, Item) -> 
+colisionPlayerItemAction(Player, Item) ->
     PlayerX = maps:get(x, Player),
     PlayerY = maps:get(y, Player),
     ItemX = maps:get(x, Item),
