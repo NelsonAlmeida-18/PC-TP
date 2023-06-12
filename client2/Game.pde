@@ -22,6 +22,7 @@ enum Type {
 }
 
 State state;
+ConnectionManager cm;
 PImage img_menu, img_game;
 
 // MENU
@@ -30,16 +31,25 @@ Button registerBtn;
 Button submitBtn;
 Button backBtn;
 Button playBtn;
+Button playAgainBtn;
+Button exitBtn;
 InputField usernameField;
 InputField passwordField;
 String font;
 int padding=20;
 Boolean findingMatch=false;
-ConnectionManager cm = new ConnectionManager("192.168.0.101", 9002);
+Boolean readerCreated=false;
+Boolean startedBalls=false;
+Boolean userLoggedIn=false;
+Boolean waitingInLobby=false;
+
+
+String  matchStatus="";
+
 
 // GAME
-Player player1 = new Player();
-Player player2 = new Player();
+Player player1 = new Player(255,0,0);
+Player player2 = new Player(0,255,0);
 
 ArrayList<Ball> balls = new ArrayList<Ball>();
 
@@ -48,7 +58,16 @@ String time;
 void setup() {
     size(1280,720);
     setState(State.MENU);
-
+    try{
+        cm = new ConnectionManager("192.168.0.101", 9000);
+        //verificar se o cm se conseguiu conectar
+        // Notificar o cliente que não dá para entrar 
+      //dar await enquanto o connectionManager não se conseguir conectar
+      //print("Não se conseguiu conectar ao servidor");
+   
+    }
+    catch(Exception e){
+    }
     // MENU
     img_menu = loadImage("./Images/loginScreen.png");
 
@@ -71,7 +90,13 @@ void setup() {
 
     submitBtn = new Button("./Images/submitBtn.png", "./Images/submitBtnHover.png");
     submitBtn.updatePosition(passwordField.x+submitBtn.width/4,passwordField.y+passwordField.height+padding);
+  
+    playAgainBtn = new Button("./Images/playAgainBtn.png", "./Images/playAgainHover.png");
+    playAgainBtn.updatePosition(loginBtn.x, loginBtn.y);
 
+    exitBtn = new Button("./Images/exitBtn.png", "./Images/exitBtnHover.png");
+    exitBtn.updatePosition(registerBtn.x, registerBtn.y);
+    
     // GAME
     img_game = loadImage("./Images/ringBG.png");
 }
@@ -89,6 +114,16 @@ void draw() {
             
         case PLAY:
           image(img_menu,0,0);
+          if(userLoggedIn){
+             fill(0,255,0);
+             textSize(24);
+             text("User logged in",10,30);
+          }
+          else if(waitingInLobby){
+            fill(0,255,0);
+             textSize(24);
+             text("User joined the lobby",10,60);
+          }
           image(backBtn.image, backBtn.x, backBtn.y);
           image(playBtn.image, playBtn.x, playBtn.y);
           break;
@@ -127,10 +162,32 @@ void draw() {
 
             player1.render();
             player2.render();
+            
+            fill(this.player1.r, this.player1.g, this.player1.b);
+            textSize(24);
+            text(this.player1.name+": "+ str(this.player1.p), 10,30);
+            fill(this.player2.r, this.player2.g, this.player2.b);
+            textSize(24);
+            String str = this.player2.name+": "+str(this.player2.p);
+            text(str, width-textWidth(str)-10, 30);
 
             // parser("P,"+ProcessHandle.current().pid()+",150,100,11,321,350,500,0,30");
             // parser("B,0,100,500,1,200,350");
-
+            if (readerCreated==false){
+               readerCreated=true;
+               new Thread( () -> {
+                 try{              
+                   String debug = this.cm.receive();
+                   while(debug!=null){
+                     parser(debug);
+                     debug=this.cm.receive();
+                   }
+                 }
+                 catch(Exception e){
+                   e.printStackTrace();}
+               }).start();
+            }
+        
             Iterator<Ball> ballIterator = balls.iterator();
 
             while (ballIterator.hasNext()) {
@@ -147,7 +204,15 @@ void draw() {
 
         case END:
             surface.setSize(1280, 720);
-
+            
+            if (matchStatus.equals("yw"))
+                  image(loadImage("./Images/YouWon_BG.jpg"),0,0);
+            else if(matchStatus.equals("yl"))
+                image(loadImage("./Images/YouLost_BG.jpg"),0,0);
+            else if(matchStatus.equals("tie"))
+                  image(loadImage("./Images/Tie.png"),0,0);
+            image(playAgainBtn.image, playAgainBtn.x, playAgainBtn.y);
+            image(exitBtn.image, exitBtn.x, exitBtn.y);
             break;
     }
 }
@@ -155,47 +220,62 @@ void draw() {
 // "P,123,100,100,0,321,300,300,0,30"
 // "B,0,100,500,1,200,350"
 void parser(String string) {
-    String[] tokens = string.split(",");
-
-    if (tokens[0].equals("P")) { // [P,pid1,x1,y1,p1,pid2,x2,y2,p2,timeLeft]
-        if(Integer.parseInt(tokens[1]) == ProcessHandle.current().pid()) {
-            player1.updatePlayer(Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3]), Integer.parseInt(tokens[4]));
-            player2.updatePlayer(Float.parseFloat(tokens[6]), Float.parseFloat(tokens[7]), Integer.parseInt(tokens[8]));
-
-        } else {
-            player1.updatePlayer(Float.parseFloat(tokens[6]), Float.parseFloat(tokens[7]), Integer.parseInt(tokens[8]));
-            player2.updatePlayer(Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3]), Integer.parseInt(tokens[4]));
-        }
-
-        this.time = tokens[9];
-
-    } else if (tokens[0].equals("B")) { // [B,t1,x1,y1,t2,x2,y2,t3,x3,y3,t4,x4,y4,t5,x5,y5]
-        int size = tokens.length;
-        balls = new ArrayList<Ball>();
-        // 1, 4, 7, 10, 13, 16
-        int i = 1;
-        while (i < size) {
-            int t = Integer.parseInt(tokens[i]);
-            float x = Float.parseFloat(tokens[i + 1]);
-            float y = Float.parseFloat(tokens[i + 2]);
-
-            switch(t) {
-                case 0:
-                    balls.add(new Ball(x, y, Type.VERDE));
-                    break;
-
-                case 1:
-                    balls.add(new Ball(x, y, Type.AZUL));
-                    break;
-
-                case 2:
-                    balls.add(new Ball(x, y, Type.VERMELHO));
-                    break;
-            }
-
-            i += 3;
+    if (string.charAt(0)=='P') { // [P,pid1,x1,y1,p1,pid2,x2,y2,p2,timeLeft]
+        String[] players = string.split(";");
+        for(String str : players){
+        String[] tokens = str.split(",");
+          if (tokens[1].equals(this.usernameField.value)) { // [P,pid1,x1,y1,p1,pid2,x2,y2,p2,timeLeft]
+              player1.updatePlayer(Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3]), Float.parseFloat(tokens[4]), Integer.parseInt(tokens[5]), tokens[1]);
+              //player2.updatePlayer(Float.parseFloat(tokens[6]), Float.parseFloat(tokens[7]), Integer.parseInt(tokens[8]));
+          } else {
+              //player1.updatePlayer(Float.parseFloat(tokens[6]), Float.parseFloat(tokens[7]), Integer.parseInt(tokens[8]));
+              player2.updatePlayer(Float.parseFloat(tokens[2]), Float.parseFloat(tokens[3]), Float.parseFloat(tokens[4]), Integer.parseInt(tokens[5]), tokens[1]);
+          }
         }
     }
+
+
+    else if (string.charAt(0) == 'I') { 
+      balls = new ArrayList<Ball>();
+      String[] parsed = string.split(";");
+      for (String str : parsed){
+        String[] tokens = str.split(",");
+        float x = Float.parseFloat(tokens[2]);
+        float y = Float.parseFloat(tokens[3]);
+        switch(tokens[1]) {
+            case "green":
+                balls.add(new Ball(x, y, Type.VERDE));
+                break;
+  
+            case "red":
+                balls.add(new Ball(x, y, Type.AZUL));
+                break;
+  
+            case "blue":
+                balls.add(new Ball(x, y, Type.VERMELHO));
+                break;
+        }
+      }
+    }
+    else if(string.charAt(0)=='T'){
+       String[] temp = string.split(",");
+       Float tempTime = Float.parseFloat(temp[1])/1000;
+       time = str(int(tempTime));
+    }
+    
+    else if(string.equals("You won!")){
+      this.state=State.END;
+       this.matchStatus="yw"; 
+    }
+   else if(string.equals("You lost!")){
+     this.state=State.END;
+       this.matchStatus="yl"; 
+    }
+    else if(string.equals("Tie!")){
+      this.state=State.END;
+       this.matchStatus="tie";
+    }
+
 }
 
 void setState(State newState) {
@@ -203,7 +283,7 @@ void setState(State newState) {
 }
 
 void keyPressed() {
-    player1.keyPressed();
+    
 
     if (usernameField.isActive()) {
         //atualiza campo com o input do utilizador
@@ -215,10 +295,14 @@ void keyPressed() {
         passwordField.text=passwordField.value;
         passwordField.processKey(key);
     }
+    if(state==State.GAME){
+       this.cm.sendKey(key); 
+    }
 }
 
 void keyReleased() {
-    player1.keyReleased();
+  if(state==State.GAME)
+    this.cm.releaseKey(key);
 }
 
 void mouseClicked(){
@@ -267,6 +351,7 @@ void mouseClicked(){
         String response = this.cm.receive();
         if(response.equals("Logged in with success!")){
               state = State.PLAY;
+              userLoggedIn=true;
               submitBtn.reset();
         }
      }
@@ -285,14 +370,54 @@ void mouseClicked(){
   //verificar se o botão de play foi clicado, se sim, ficar à espera de encontrar partida e fazer animação DIY
   if(state==State.PLAY){
       if(mouseX>playBtn.x && mouseX<playBtn.x+playBtn.width && mouseY>playBtn.y && mouseY<playBtn.y+playBtn.height){
-      
-        this.cm.joinMatch(usernameField.value);
-        String response = this.cm.receive();
-        response = this.cm.receive();
-        print(response);
+        
+        if(!waitingInLobby){
+          this.cm.joinMatch(usernameField.value);
+          String response = this.cm.receive();
+         
+          if (response.equals("User joined the lobby!")){
+             waitingInLobby=true; 
+             fill(0,255,0);
+             textSize(24);
+             text("User joined the lobby",10,60);
+          }
+          response = this.cm.receive();
+          if(response.equals("Start")){
+            state = State.GAME;
+            userLoggedIn=false;
+          }
+        }
      } 
   }
-
+  
+  if (state == State.END) {
+    if(mouseX > playAgainBtn.x && mouseX<(playAgainBtn.x + playAgainBtn.width)) {
+        if(mouseY>playAgainBtn.y && mouseY<(playAgainBtn.y + playAgainBtn.height)) {
+          if(!waitingInLobby){
+            this.cm.joinMatch(usernameField.value);
+            String response = this.cm.receive();
+           
+            if (response.equals("User joined the lobby!")){
+               waitingInLobby=true; 
+               fill(0,255,0);
+               textSize(24);
+               text("User joined the lobby",10,60);
+            }
+            response = this.cm.receive();
+            if(response.equals("Start")){
+              state = State.GAME;
+              userLoggedIn=false;
+          }
+        }
+        if(mouseY>exitBtn.y && mouseY<(exitBtn.y + exitBtn.height)) {
+            exitBtn.image = exitBtn.hover;
+            playAgainBtn.image = playAgainBtn.regular;
+            cursor(HAND);
+            
+        }
+      }
+    }
+  }
   if(mouseX>backBtn.x && mouseX<backBtn.x+backBtn.width && mouseY>backBtn.y && mouseY<backBtn.y+backBtn.height){
     if (state==State.MENU){
        exit();
@@ -305,4 +430,59 @@ void mouseClicked(){
       playBtn.reset();
     }
   }
+}
+
+
+void mouseMoved() {
+    if (state == State.MENU) {
+        //atualiza o botão para hover
+        if(mouseX > loginBtn.x && mouseX<(loginBtn.x+loginBtn.width)) {
+            if(mouseY>loginBtn.y && mouseY<(loginBtn.y+loginBtn.height)) {
+                loginBtn.image=loginBtn.hover;
+                registerBtn.image=registerBtn.regular;
+                cursor(HAND);
+            }
+            if(mouseY>registerBtn.y && mouseY<(registerBtn.y+registerBtn.height)) {
+                registerBtn.image=registerBtn.hover;
+                loginBtn.image=loginBtn.regular;
+                cursor(HAND);
+            }
+        } else {
+            loginBtn.image=loginBtn.regular;
+            registerBtn.image=registerBtn.regular;
+            backBtn.image=backBtn.regular;
+            cursor(ARROW);
+        }
+    }
+
+    if(mouseX>backBtn.x && mouseX<backBtn.x+backBtn.width && mouseY>backBtn.y && mouseY<backBtn.y+backBtn.height) {
+        backBtn.image=backBtn.hover;
+        cursor(HAND);
+    } else {
+        if(mouseX>submitBtn.x && mouseX<submitBtn.x+submitBtn.width) {
+            if(mouseY>submitBtn.y && mouseY<submitBtn.y+submitBtn.height) {
+                submitBtn.image=submitBtn.hover;
+                cursor(HAND);
+            }
+        } else {
+            submitBtn.image=submitBtn.regular;
+            cursor(ARROW);
+        }
+    }
+
+    if (state == State.END) {
+        if(mouseX > playAgainBtn.x && mouseX<(playAgainBtn.x + playAgainBtn.width)) {
+            if(mouseY>playAgainBtn.y && mouseY<(playAgainBtn.y + playAgainBtn.height)) {
+                playAgainBtn.image = playAgainBtn.hover;
+                exitBtn.image = exitBtn.regular;
+                cursor(HAND);
+            }
+            if(mouseY>exitBtn.y && mouseY<(exitBtn.y + exitBtn.height)) {
+                exitBtn.image = exitBtn.hover;
+                playAgainBtn.image = playAgainBtn.regular;
+                cursor(HAND);
+                
+            }
+        }
+    }
 }

@@ -1,5 +1,5 @@
 -module(file_manager).
--export([readContent/1, parser/2, parseSingleField/1, data_to_text/1, account_to_string/1, write_data/2, test/0, file_management/0]).
+-export([readContent/1, parser/2, parseSingleField/1, data_to_text/1, account_to_string/1, write_data/2, file_management/0]).
 
 
 file_management() ->
@@ -28,7 +28,6 @@ readContent(Filename) ->
 %UPW -> User, Password, Wg
 parser([], Data) -> Data;
 parser([H | T], Data) ->
-    io:fwrite("Header ~p~n", [H]),
     if 
         H == [<<>>] -> 
             parser(T,Data);
@@ -76,9 +75,3 @@ data_to_text([H | T]) ->
 
 write_data(Filename, Accounts) -> 
     file:write_file(Filename, data_to_text(maps:to_list(Accounts))).
-
-
-test() ->
-    Map = readContent("file_syntax.txt"),
-    Map1 = maps:put([<<"Goncalo">>], {[<<"1234">>], [<<"5">>], false}, Map),
-    write_data("file_syntax.txt", Map1).

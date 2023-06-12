@@ -5,6 +5,9 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.*;
 
+//ifconfig | grep "inet " | grep -Fv 127.0.0.1 | awk '{print $2}'
+// netstat -p tcp -na | grep 9001
+
 class ConnectionManager {
     private Socket socket;
     private BufferedReader in;
@@ -18,19 +21,19 @@ class ConnectionManager {
       this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
       this.out = new PrintWriter(socket.getOutputStream());
       this.isActive = true;
-      print("Sucesso");
+      print("Sucesso\n");
     }
     catch (IOException e) {
       this.isActive = false;
       e.printStackTrace();
     }
   }
-  
-
+ 
 
   public String receive() {
     String message = "";
     try{
+    
       message = this.in.readLine();
     }
     catch (IOException e) {
@@ -46,9 +49,10 @@ class ConnectionManager {
   }
   
   public Boolean loginUser(String username, String password){
-      if(this.isActive)
+      if(this.isActive){
         this.out.println("login,"+username+","+password);
         this.out.flush();
+      }
       //verificar resposta para saver se foic om suceesso
       return true;
   }
@@ -64,4 +68,16 @@ class ConnectionManager {
     this.out.flush();
   }
   
+  public void sendKey(char key){
+    if(key=='w' || key=='a' || key=='d'){
+       this.out.println("KeyChanged,"+key+",True\n");
+       this.out.flush();
+    }
+  }
+  
+  
+  public void releaseKey(char key){
+    this.out.println("KeyChanged,"+key+",False\n");
+    this.out.flush();
+  }
 }

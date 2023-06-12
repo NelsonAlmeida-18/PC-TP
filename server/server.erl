@@ -30,6 +30,12 @@ acceptor(LSock) ->
         {ok, Socket} ->
             spawn(fun() -> acceptor(LSock) end),
             userAuth(Socket);
+        {error, closed} ->
+            io:fwrite("Closed socket");
+        {error, timeout} ->
+            io:fwrite("Timeout");
+        {error, system_limit} ->
+            io:fwrite("Limit of socket reached");
         {error, _} ->
             io:fwrite("Error listening to socket")
     end.
@@ -131,14 +137,15 @@ lobby(Pids) ->
                     NewPids = [{From, User, UserLevel}],
                     lobby(NewPids);
                 true ->
+                    
                     case lists:member({From, User, UserLevel}, Pids) of
                         false -> 
-                            TempPid =[Pids | {From, User, UserLevel}],
+                            TempPid =[{From, User, UserLevel} | Pids],
                             case matchMaking(TempPid) of
                                 {User1, User2} ->
                                     {From1, Username1, _} = User1,
                                     {From2, Username2, _} = User2,
-                                    spawn(fun() -> game:game([{From1, Username1}, {From2, Username2}]) end),
+                                    spawn(fun() -> game:game({From1, Username1}, {From2, Username2}) end),
                                     NewPids = lists:delete(User1, Pids),
                                     NewPids2 = lists:delete(User2, NewPids),
                                     lobby(NewPids2);
@@ -188,7 +195,7 @@ initGame(Sock, User) ->
 
     receive
         {initMatch, Data, MatchPid, match_manager}->
-            gen_tcp:send(Sock, "The game has started\n"),
+            gen_tcp:send(Sock, "Start\n"),
             sendInitData(Sock, Data),
             MatchPid;
         _ ->
@@ -205,7 +212,9 @@ gameOver(Sock, Pid, User, Flag) ->
             accounts_manager ! {update_victories, User},
             accounts_manager ! write_data;
         Flag == 0 ->
-            gen_tcp:send(Sock, "You lost!\n")
+            gen_tcp:send(Sock, "You lost!\n");
+        Flag == 2 ->
+            gen_tcp:send(Sock, "Tie!\n")
     end,
 
     match_manager ! {leave, Pid, User},
@@ -261,57 +270,55 @@ userGameFlow(Sock, User, MatchPid) ->
                     Info1 = string:split(Info,",",all),
                     case Info1 of
                         ["KeyChanged", Key, "True"] -> 
-                            match_manager ! {keyChanged, Key, true, self()};
+                            keysManager ! {keyChanged, Key, "true", self()};
                         ["KeyChanged", Key, "False"] -> 
-                            match_manager ! {keyChanged, Key, false, self()}
+                            keysManager ! {keyChanged, Key, "false", self()};
+                        _ ->
+                            ok
                     end,
                     userGameFlow(Sock, User, MatchPid);
                 _ ->
-                    io:fwrite("User ~s: Error.~n", [User]),
+                    
                     request({logout, User, something}),
                     match_manager ! {leave, User, self()}
             end
     end.
 
 
-sendPlayersData(Sock, Data) ->
-    Players = maps:get(players, Data),
+sendPlayersData(Sock, Players) ->
     ListOfPlayers = [Player || {_, Player} <- maps:to_list(Players)],
     sendPlayerData(Sock, ListOfPlayers).
 
 
-sendPlayerData(_, []) ->
-    ok;
+sendPlayerData(Sock, []) ->
+    gen_tcp:send(Sock, "\n");
 sendPlayerData(Sock, [H | T]) ->
     User = maps:get(user, H),
     X = maps:get(x, H),
     Y = maps:get(y, H),
     Angle = maps:get(angle, H),
     Score = maps:get(score, H),
-    gen_tcp:send(Sock, io_lib:fwrite("P,~s,~w,~w,~w,~w\n", [User, X, Y, Angle, Score])),
+    gen_tcp:send(Sock, io_lib:fwrite("P,~s,~w,~w,~w,~w;", [User, X, Y, Angle, Score])),
     sendPlayerData(Sock, T).
 
-
-sendItemsData(Sock, Data) ->
-    Items = maps:get(items, Data),
-    sendItemData(Sock, Items).
-
-sendItemData(_, []) ->
-    true;
-sendItemData(Sock, [Item | Items]) ->
-    X = maps:get(x, Item),
-    Y = maps:get(y, Item),
-    Type = maps:get(type, Item),
-    gen_tcp:send(Sock, io_lib:fwrite("I,~s,~w,~w\n", [Type, X, Y])),
-    sendItemData(Sock, Items).
-    
+sendItemsData(Sock,[]) -> gen_tcp:send(Sock, "\n");
+sendItemsData(Sock, [H|T]) ->
+    X = maps:get(x,H),
+    Y = maps:get(y,H),
+    Type = maps:get(type, H),
+    gen_tcp:send(Sock, io_lib:fwrite("I,~s,~w,~w;", [Type, X, Y])),
+    sendItemsData(Sock, T).
 
 sendInitData(Sock, Data) ->
-    sendPlayerData(Sock, Data),
-    sendItemsData(Sock, Data).
+    Players = maps:get(players, Data),
+    Items = maps:get(items, Data),
+    sendPlayersData(Sock, Players),
+    sendItemsData(Sock, Items).
 
 
 sendUpdatedData(Sock, Data) ->
+    Time = maps:get(time, Data),
+    gen_tcp:send(Sock, io_lib:fwrite("T,~w~n", [Time])),
     case maps:find(players, Data) of
         {ok, Players} ->
             sendPlayersData(Sock, Players);
