@@ -5,9 +5,6 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.*;
 
-//ifconfig | grep "inet " | grep -Fv 127.0.0.1 | awk '{print $2}'
-// netstat -p tcp -na | grep 9001
-
 class ConnectionManager {
     private Socket socket;
     private BufferedReader in;

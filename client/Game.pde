@@ -59,12 +59,7 @@ void setup() {
     size(1280,720);
     setState(State.MENU);
     try{
-        cm = new ConnectionManager("192.168.0.101", 9000);
-        //verificar se o cm se conseguiu conectar
-        // Notificar o cliente que não dá para entrar 
-      //dar await enquanto o connectionManager não se conseguir conectar
-      //print("Não se conseguiu conectar ao servidor");
-   
+        cm = new ConnectionManager("YOUR_IP", PORT);
     }
     catch(Exception e){
     }
